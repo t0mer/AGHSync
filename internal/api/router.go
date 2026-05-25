@@ -14,8 +14,8 @@ import (
 func NewRouter(logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
-	r.Use(middleware.Recovery(logger))
 	r.Use(middleware.RequestLogger(logger))
+	r.Use(middleware.Recovery(logger))
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", handlers.Health)

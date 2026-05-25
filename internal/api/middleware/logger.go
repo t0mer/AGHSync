@@ -32,3 +32,5 @@ func (sw *statusWriter) WriteHeader(code int) {
 	sw.status = code
 	sw.ResponseWriter.WriteHeader(code)
 }
+
+func (sw *statusWriter) Unwrap() http.ResponseWriter { return sw.ResponseWriter }
