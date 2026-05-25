@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 CREATE TABLE IF NOT EXISTS sync_results (
     id          TEXT PRIMARY KEY,
     run_id      TEXT NOT NULL REFERENCES sync_runs(id) ON DELETE CASCADE,
-    instance_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
     config_type TEXT NOT NULL,
     status      TEXT NOT NULL,
     diff_json   TEXT,

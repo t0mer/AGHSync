@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+	"strconv"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -72,11 +74,15 @@ func (s *Store) migrate() error {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
-	for i, entry := range entries {
-		version := i + 1
+	for _, entry := range entries {
+		prefix := strings.SplitN(entry.Name(), "_", 2)[0]
+		version, err := strconv.Atoi(prefix)
+		if err != nil {
+			return fmt.Errorf("migration filename %q has non-numeric prefix: %w", entry.Name(), err)
+		}
 		var count int
 		if err := s.db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version=?", version).Scan(&count); err != nil {
-			return err
+			return fmt.Errorf("check migration version %d: %w", version, err)
 		}
 		if count > 0 {
 			continue
@@ -85,11 +91,20 @@ func (s *Store) migrate() error {
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", entry.Name(), err)
 		}
-		if _, err := s.db.Exec(string(data)); err != nil {
+		tx, err := s.db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration %d transaction: %w", version, err)
+		}
+		if _, err := tx.Exec(string(data)); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("apply migration %d (%s): %w", version, entry.Name(), err)
 		}
-		if _, err := s.db.Exec("INSERT INTO schema_migrations(version) VALUES(?)", version); err != nil {
-			return err
+		if _, err := tx.Exec("INSERT INTO schema_migrations(version) VALUES(?)", version); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("record migration %d: %w", version, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %d: %w", version, err)
 		}
 	}
 	return nil
