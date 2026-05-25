@@ -14,7 +14,8 @@ import (
 // ErrNotFound is returned when an instance does not exist.
 var ErrNotFound = errors.New("instance not found")
 
-const timeFmt = "2006-01-02 15:04:05"
+// modernc/sqlite returns datetime strings in RFC3339 format.
+const timeFmt = time.RFC3339
 
 // Repository provides CRUD and sync-config operations over the instances table.
 type Repository struct {
