@@ -25,7 +25,7 @@ function DiffViewer({ result }: { result: RunResult }) {
 
   if (!result.diff_json) return null
 
-  let diff: DiffData | null = null
+  let diff: DiffData
   try {
     diff = JSON.parse(result.diff_json) as DiffData
   } catch {

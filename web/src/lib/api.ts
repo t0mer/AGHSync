@@ -33,6 +33,7 @@ export interface FetchOptions extends Omit<RequestInit, 'headers' | 'credentials
 export async function apiFetch<T = unknown>(path: string, opts: FetchOptions): Promise<T> {
   const { credentials, ...rest } = opts
   const headers: Record<string, string> = {}
+  headers['X-Requested-With'] = 'XMLHttpRequest'
   if (credentials) {
     headers['Authorization'] = 'Basic ' + encodeCredentials(credentials)
   }
