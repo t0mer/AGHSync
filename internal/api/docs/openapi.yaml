@@ -219,7 +219,7 @@ components:
 
     RunStatus:
       type: object
-      required: [run_id, triggered_by, status]
+      required: [run_id, triggered_by, started_at, status]
       properties:
         run_id:
           type: string
@@ -227,9 +227,16 @@ components:
         triggered_by:
           type: string
           enum: [manual, scheduler, webhook]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          description: "Present only when the run has completed (omitted when still running)."
         status:
           type: string
-          enum: [running, success, partial_failure, failure]
+          enum: [running, success, partial_failure, error]
 
     SyncStatusResponse:
       type: object
@@ -260,10 +267,10 @@ components:
         finished_at:
           type: string
           format: date-time
-          nullable: true
+          description: "Present only when the run has completed (omitted when still running)."
         status:
           type: string
-          enum: [running, success, partial_failure, failure]
+          enum: [running, success, partial_failure, error]
 
     HistoryResult:
       type: object
@@ -283,14 +290,13 @@ components:
           example: "filtering"
         status:
           type: string
-          enum: [success, failure, skipped]
+          enum: [success, error]
         diff_json:
           type: string
-          nullable: true
-          description: "JSON-encoded diff of what changed, if available."
+          description: "JSON-encoded diff of what changed. Absent when no diff is available."
         error_msg:
           type: string
-          nullable: true
+          description: "Error message when status is error. Absent on success."
         created_at:
           type: string
           format: date-time
@@ -540,6 +546,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Settings'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /settings/ui-auth:
     put:
@@ -664,7 +672,7 @@ paths:
       operationId: webhookSync
       description: |
         Identical behavior to POST /sync/run. Intended for external webhook callers
-        (e.g., AdGuardHome update hooks). Requires Bearer token authentication.
+        (e.g., AdGuardHome update hooks). Accepts the same auth as all /api/v1 endpoints.
       responses:
         '202':
           description: Sync queued
