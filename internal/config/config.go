@@ -87,6 +87,55 @@ func (c *Config) GetSchedulerCron() (string, error) {
 // SetSchedulerCron persists the cron expression.
 func (c *Config) SetSchedulerCron(expr string) error { return c.Set("scheduler_cron", expr) }
 
+// GetUIAuthEnabled returns whether UI basic auth is enabled (default false).
+func (c *Config) GetUIAuthEnabled() (bool, error) {
+	val, err := c.GetWithDefault("ui_auth_enabled", "0")
+	if err != nil {
+		return false, err
+	}
+	return val == "1", nil
+}
+
+// SetUIAuthEnabled persists the UI auth enabled flag.
+func (c *Config) SetUIAuthEnabled(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return c.Set("ui_auth_enabled", v)
+}
+
+// GetUIUsername returns the configured UI username (default "").
+func (c *Config) GetUIUsername() (string, error) {
+	return c.GetWithDefault("ui_username", "")
+}
+
+// SetUIUsername persists the UI username.
+func (c *Config) SetUIUsername(u string) error { return c.Set("ui_username", u) }
+
+// GetUIPasswordHash returns the bcrypt hash of the UI password (default "").
+func (c *Config) GetUIPasswordHash() (string, error) {
+	return c.GetWithDefault("ui_password_hash", "")
+}
+
+// SetUIPasswordHash persists the bcrypt password hash.
+func (c *Config) SetUIPasswordHash(h string) error { return c.Set("ui_password_hash", h) }
+
+// GetAPITokenHash returns the bcrypt hash of the API token (default "").
+// Empty string means no token is configured (bootstrap mode).
+func (c *Config) GetAPITokenHash() (string, error) {
+	return c.GetWithDefault("api_token_hash", "")
+}
+
+// SetAPITokenHash persists the API token hash. Pass "" to remove (return to bootstrap mode).
+func (c *Config) SetAPITokenHash(h string) error {
+	if h == "" {
+		_, err := c.s.DB().Exec(`DELETE FROM app_config WHERE key='api_token_hash'`)
+		return err
+	}
+	return c.Set("api_token_hash", h)
+}
+
 // InstallSecret returns the per-install 32-byte random secret used for AES-GCM key derivation.
 // Generated once on first call and persisted as hex.
 func (c *Config) InstallSecret() ([]byte, error) {

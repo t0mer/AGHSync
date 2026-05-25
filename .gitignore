@@ -14,7 +14,7 @@ CLAUDE.md
 *.swp
 .DS_Store
 coverage.out
-docs/superpowers/
+/docs/
 /aghsync
 /internal/webui/dist/*
 !/internal/webui/dist/.gitkeep

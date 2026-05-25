@@ -15,7 +15,9 @@ import (
 	"golang.org/x/term"
 
 	"github.com/t0mer/aghsync/internal/api"
+	"github.com/t0mer/aghsync/internal/auth"
 	"github.com/t0mer/aghsync/internal/config"
+	"github.com/t0mer/aghsync/internal/instance"
 	"github.com/t0mer/aghsync/internal/logging"
 	"github.com/t0mer/aghsync/internal/service"
 	"github.com/t0mer/aghsync/internal/store"
@@ -43,7 +45,8 @@ func main() {
 
 	cfg := config.New(s)
 
-	if _, err := cfg.InstallSecret(); err != nil {
+	installSecret, err := cfg.InstallSecret()
+	if err != nil {
 		logger.Error("failed to initialize install secret", "err", err)
 		os.Exit(1)
 	}
@@ -75,7 +78,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := api.NewRouter(logger)
+	deps := api.Deps{
+		Store:     s,
+		Config:    cfg,
+		Logger:    logger,
+		Instances: instance.NewRepository(s.DB(), installSecret),
+	}
+	router := api.NewRouter(deps)
 	addr := fmt.Sprintf(":%d", port)
 	logger.Info("starting server", "addr", addr, "version", version)
 
@@ -142,19 +151,25 @@ func resolvePort(cfg *config.Config, flagPort int) (int, error) {
 	return port, nil
 }
 
-// handleResetPassword prompts for a new password and stores it.
-// Full bcrypt hashing is implemented in Plan 2 (auth package);
-// this stub stores the plaintext under a temporary key until then.
+// handleResetPassword prompts for a new password, hashes it with bcrypt, and persists the hash.
+// It also enables UI auth so the new credentials are immediately active.
 func handleResetPassword(cfg *config.Config) error {
 	fmt.Print("New password: ")
 	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return fmt.Errorf("read password: %w", err)
 	}
-	fmt.Println() // newline after the hidden input
+	fmt.Println()
 	pw := string(pwBytes)
 	if pw == "" {
 		return fmt.Errorf("password cannot be empty")
 	}
-	return cfg.Set("_ui_password_plain_tmp", pw)
+	hash, err := auth.HashPassword(pw)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	if err := cfg.SetUIPasswordHash(hash); err != nil {
+		return fmt.Errorf("save password hash: %w", err)
+	}
+	return cfg.SetUIAuthEnabled(true)
 }
