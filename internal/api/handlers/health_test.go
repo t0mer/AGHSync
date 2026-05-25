@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/t0mer/aghsync/internal/api"
 	"github.com/t0mer/aghsync/internal/api/handlers"
+	"github.com/t0mer/aghsync/internal/auth"
 	"github.com/t0mer/aghsync/internal/config"
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
@@ -93,29 +94,36 @@ func TestRouter_SettingsRoute_Exists(t *testing.T) {
 	assert.NotEqual(t, http.StatusMethodNotAllowed, w.Code)
 }
 
-func TestRouter_DocsRoutes_NoAuth(t *testing.T) {
-	router := api.NewRouter(newTestDeps(t))
+func TestRouter_DocsRoutes_BypassAuth(t *testing.T) {
+	deps := newTestDeps(t)
+	// Configure a real token so APIAuth is active (not in bootstrap mode).
+	_, tokenHash, err := auth.GenerateToken()
+	require.NoError(t, err)
+	require.NoError(t, deps.Config.SetAPITokenHash(tokenHash))
 
-	tests := []struct {
-		path string
-		want int
-	}{
-		{"/api/docs/", http.StatusOK},
-		{"/api/docs/openapi.yaml", http.StatusOK},
-		{"/api/docs/swagger-ui.css", http.StatusOK},
-		{"/api/docs/swagger-ui-bundle.js", http.StatusOK},
+	router := api.NewRouter(deps)
+
+	// Docs routes must be accessible without any credentials.
+	docsPaths := []string{
+		"/api/docs/",
+		"/api/docs/openapi.yaml",
+		"/api/docs/swagger-ui.css",
+		"/api/docs/swagger-ui-bundle.js",
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+	for _, path := range docsPaths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
-			if w.Code != tc.want {
-				t.Errorf("GET %s: expected %d, got %d", tc.path, tc.want, w.Code)
-			}
+			require.Equal(t, http.StatusOK, w.Code, "docs route must bypass auth")
 		})
 	}
+
+	// Confirm auth is active: /api/v1/health without credentials should be rejected.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.NotEqual(t, http.StatusOK, w.Code, "/api/v1/health must require auth when token is set")
 }
 
 func TestRouter_DocsRedirect(t *testing.T) {

@@ -81,9 +81,3 @@ func TestSwaggerUIHandler_ServesJS(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
