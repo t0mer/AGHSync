@@ -1,0 +1,741 @@
+openapi: "3.0.3"
+info:
+  title: AGHSync API
+  version: "1.0.0"
+  description: |
+    REST API for AGHSync — an AdGuardHome configuration sync service.
+    Every UI action is exposed as an equivalent REST endpoint.
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: UI Basic Auth credentials (when UI auth is enabled).
+    BearerToken:
+      type: http
+      scheme: bearer
+      description: API token generated via POST /settings/api-token.
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: "instance not found"
+
+    Instance:
+      type: object
+      required: [id, name, address, username, is_master, tls_skip_verify, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        name:
+          type: string
+          example: "home-master"
+        address:
+          type: string
+          example: "http://192.168.1.1:3000"
+        username:
+          type: string
+          example: "admin"
+        is_master:
+          type: boolean
+          example: true
+        tls_skip_verify:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateInstanceRequest:
+      type: object
+      required: [name, address]
+      properties:
+        name:
+          type: string
+          example: "home-child"
+        address:
+          type: string
+          example: "http://192.168.1.2:3000"
+        username:
+          type: string
+          example: "admin"
+        password:
+          type: string
+          format: password
+          example: "secret"
+        is_master:
+          type: boolean
+          default: false
+        tls_skip_verify:
+          type: boolean
+          default: false
+
+    UpdateInstanceRequest:
+      type: object
+      required: [name, address]
+      properties:
+        name:
+          type: string
+          example: "home-child-renamed"
+        address:
+          type: string
+          example: "http://192.168.1.2:3000"
+        username:
+          type: string
+          example: "admin"
+        password:
+          type: string
+          format: password
+          nullable: true
+          description: "If null or omitted, the existing password is kept."
+        tls_skip_verify:
+          type: boolean
+          default: false
+
+    SyncConfigEntry:
+      type: object
+      required: [config_type, enabled]
+      properties:
+        config_type:
+          type: string
+          example: "filtering"
+          description: |
+            One of: blocked_services, clients, dhcp, dns, filtering, log,
+            parental, rewrite, safebrowsing, safesearch, stats, tls
+        enabled:
+          type: boolean
+          example: true
+
+    UpdateSyncConfigRequest:
+      type: object
+      required: [config]
+      properties:
+        config:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncConfigEntry'
+
+    Settings:
+      type: object
+      required: [ui_auth_enabled, ui_username, has_api_token, scheduler_cron, port]
+      properties:
+        ui_auth_enabled:
+          type: boolean
+          example: false
+        ui_username:
+          type: string
+          example: "admin"
+        has_api_token:
+          type: boolean
+          example: true
+        scheduler_cron:
+          type: string
+          example: "0 */6 * * *"
+        port:
+          type: integer
+          example: 8080
+
+    UpdateUIAuthRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        username:
+          type: string
+          description: "Required when enabled is true."
+        password:
+          type: string
+          format: password
+          description: "Required when enabled is true."
+
+    GenerateTokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: "Plaintext API token — returned once only, never stored."
+          example: "aghsync_a1b2c3d4e5f6..."
+
+    SetScheduleRequest:
+      type: object
+      required: [cron]
+      properties:
+        cron:
+          type: string
+          description: "Standard 5-field cron expression (evaluated in UTC). Pass empty string to disable."
+          example: "0 */6 * * *"
+
+    SetScheduleResponse:
+      type: object
+      required: [cron]
+      properties:
+        cron:
+          type: string
+          example: "0 */6 * * *"
+
+    TriggerSyncResponse:
+      type: object
+      required: [run_id]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+    RunStatus:
+      type: object
+      required: [run_id, triggered_by, status]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        triggered_by:
+          type: string
+          enum: [manual, scheduler, webhook]
+        status:
+          type: string
+          enum: [running, success, partial_failure, failure]
+
+    SyncStatusResponse:
+      type: object
+      required: [current, last]
+      properties:
+        current:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RunStatus'
+        last:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RunStatus'
+
+    Run:
+      type: object
+      required: [id, triggered_by, started_at, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        triggered_by:
+          type: string
+          enum: [manual, scheduler, webhook]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [running, success, partial_failure, failure]
+
+    HistoryResult:
+      type: object
+      required: [id, run_id, instance_id, config_type, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+          format: uuid
+        instance_id:
+          type: string
+          format: uuid
+        config_type:
+          type: string
+          example: "filtering"
+        status:
+          type: string
+          enum: [success, failure, skipped]
+        diff_json:
+          type: string
+          nullable: true
+          description: "JSON-encoded diff of what changed, if available."
+        error_msg:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    RunDetail:
+      allOf:
+        - $ref: '#/components/schemas/Run'
+        - type: object
+          required: [results]
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/HistoryResult'
+
+security:
+  - BasicAuth: []
+  - BearerToken: []
+
+tags:
+  - name: health
+    description: Liveness check
+  - name: instances
+    description: AdGuardHome instance management
+  - name: settings
+    description: Application settings
+  - name: sync
+    description: Sync operations and scheduling
+  - name: history
+    description: Sync run history
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness check
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /instances:
+    get:
+      tags: [instances]
+      summary: List all instances
+      operationId: listInstances
+      responses:
+        '200':
+          description: Array of instances (master first by convention)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Instance'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [instances]
+      summary: Add a new instance
+      operationId: createInstance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInstanceRequest'
+      responses:
+        '201':
+          description: Instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /instances/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Instance UUID
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [instances]
+      summary: Get a single instance
+      operationId: getInstance
+      responses:
+        '200':
+          description: Instance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags: [instances]
+      summary: Update an instance
+      operationId: updateInstance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInstanceRequest'
+      responses:
+        '200':
+          description: Updated instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [instances]
+      summary: Delete an instance
+      operationId: deleteInstance
+      responses:
+        '204':
+          description: Instance deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /instances/{id}/promote:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Instance UUID to promote
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      tags: [instances]
+      summary: Promote instance to master
+      operationId: promoteInstance
+      description: |
+        Promotes the specified instance to master. The current master is
+        automatically demoted to slave. Only valid for child instances.
+      responses:
+        '200':
+          description: Promoted instance (now master)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /instances/{id}/sync-config:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Instance UUID
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [instances]
+      summary: Get sync configuration for a child instance
+      operationId: getSyncConfig
+      description: Returns the list of config-type toggles. All types are enabled by default.
+      responses:
+        '200':
+          description: Sync config entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SyncConfigEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags: [instances]
+      summary: Replace sync configuration for a child instance
+      operationId: updateSyncConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSyncConfigRequest'
+      responses:
+        '200':
+          description: Updated sync config
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SyncConfigEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /settings:
+    get:
+      tags: [settings]
+      summary: Get application settings
+      operationId: getSettings
+      description: Never exposes password hashes or API token values.
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+
+  /settings/ui-auth:
+    put:
+      tags: [settings]
+      summary: Enable or disable UI Basic Auth
+      operationId: updateUIAuth
+      description: |
+        When enabling, both username and password are required.
+        When disabling, credentials are preserved but auth is bypassed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUIAuthRequest'
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /settings/api-token:
+    post:
+      tags: [settings]
+      summary: Generate a new API token
+      operationId: generateAPIToken
+      description: |
+        Creates a new API token. The plaintext is returned once and never stored.
+        Any previous token is replaced immediately.
+      responses:
+        '201':
+          description: New token (plaintext, shown once)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateTokenResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [settings]
+      summary: Delete the API token
+      operationId: deleteAPIToken
+      description: Removes the API token. External callers will be denied until a new token is generated.
+      responses:
+        '204':
+          description: Token deleted
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sync/run:
+    post:
+      tags: [sync]
+      summary: Trigger an immediate sync
+      operationId: triggerSync
+      description: Queues a manual sync run. Returns 409 if a sync is already running.
+      responses:
+        '202':
+          description: Sync queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerSyncResponse'
+        '409':
+          description: Sync already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sync/status:
+    get:
+      tags: [sync]
+      summary: Get current and last sync status
+      operationId: getSyncStatus
+      responses:
+        '200':
+          description: Sync status (current may be null if no sync is in progress)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncStatusResponse'
+
+  /sync/schedule:
+    put:
+      tags: [sync]
+      summary: Set the automatic sync schedule
+      operationId: setSchedule
+      description: |
+        Installs or replaces the cron schedule. Pass an empty cron string to disable
+        automatic syncing without error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetScheduleRequest'
+      responses:
+        '200':
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetScheduleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /webhook/sync:
+    post:
+      tags: [sync]
+      summary: Webhook endpoint to trigger sync from external systems
+      operationId: webhookSync
+      description: |
+        Identical behavior to POST /sync/run. Intended for external webhook callers
+        (e.g., AdGuardHome update hooks). Requires Bearer token authentication.
+      responses:
+        '202':
+          description: Sync queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerSyncResponse'
+        '409':
+          description: Sync already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /history:
+    get:
+      tags: [history]
+      summary: List sync runs
+      operationId: listHistory
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of runs to return (max 200)
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 200
+        - name: offset
+          in: query
+          description: Number of runs to skip for pagination
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of sync runs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Run'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /history/{runId}:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        description: Sync run UUID
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [history]
+      summary: Get a sync run with its per-instance results
+      operationId: getHistoryRun
+      responses:
+        '200':
+          description: Sync run with per-instance per-config-type results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
