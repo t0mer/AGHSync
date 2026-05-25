@@ -1,0 +1,13 @@
+services:
+  aghsync:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - aghsync-data:/app/data
+    environment:
+      AGHSYNC_DATA: /app/data
+      LOG_LEVEL: info
+
+volumes:
+  aghsync-data:
