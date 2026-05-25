@@ -9,16 +9,21 @@ import (
 	"github.com/t0mer/aghsync/internal/api/handlers"
 	"github.com/t0mer/aghsync/internal/api/middleware"
 	"github.com/t0mer/aghsync/internal/config"
+	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
+	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
 )
 
 // Deps holds the application dependencies threaded through the router.
 type Deps struct {
-	Store     *store.Store
-	Config    *config.Config
-	Logger    *slog.Logger
-	Instances *instance.Repository
+	Store      *store.Store
+	Config     *config.Config
+	Logger     *slog.Logger
+	Instances  *instance.Repository
+	History    *history.Store
+	Dispatcher *internalsync.Dispatcher
+	Scheduler  *internalsync.Scheduler
 }
 
 // NewRouter builds and returns the Chi router with all middleware and routes registered.
@@ -49,6 +54,18 @@ func NewRouter(deps Deps) http.Handler {
 		r.Put("/settings/ui-auth", handlers.UpdateUIAuth(deps.Config, deps.Logger))
 		r.Post("/settings/api-token", handlers.GenerateAPIToken(deps.Config, deps.Logger))
 		r.Delete("/settings/api-token", handlers.DeleteAPIToken(deps.Config, deps.Logger))
+
+		// Sync
+		r.Post("/sync/run", handlers.TriggerSync(deps.Dispatcher))
+		r.Get("/sync/status", handlers.GetSyncStatus(deps.Dispatcher))
+		r.Put("/sync/schedule", handlers.SetSchedule(deps.Config, deps.Scheduler))
+
+		// Webhook trigger (same auth as /api/v1 — token or basic auth)
+		r.Post("/webhook/sync", handlers.TriggerSync(deps.Dispatcher))
+
+		// History
+		r.Get("/history", handlers.ListHistory(deps.History))
+		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
 	})
 
 	return r

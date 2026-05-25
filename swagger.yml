@@ -1656,12 +1656,10 @@
         'upstream_mode':
           'type': 'string'
           'enum':
-          - const: ''
-            deprecated: true
-            description: Use `load_balance` instead.
-          - const: 'fastest_addr'
-          - const: 'load_balance'
-          - const: 'parallel'
+          - ''
+          - 'fastest_addr'
+          - 'load_balance'
+          - 'parallel'
           'description': Upstream modes enumeration.
         'use_private_ptr_resolvers':
           'type': 'boolean'

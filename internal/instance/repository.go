@@ -162,6 +162,19 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// GetDecryptedPassword returns the plaintext AGH password for the given instance.
+func (r *Repository) GetDecryptedPassword(ctx context.Context, id string) (string, error) {
+	var enc string
+	err := r.db.QueryRowContext(ctx, `SELECT password_enc FROM instances WHERE id=?`, id).Scan(&enc)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return auth.DecryptPassword(enc, r.installSecret)
+}
+
 // Promote atomically demotes the current master and promotes the given instance.
 func (r *Repository) Promote(ctx context.Context, id string) error {
 	now := time.Now().UTC().Format(timeFmt)

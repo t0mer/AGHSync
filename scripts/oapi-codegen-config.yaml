@@ -1,5 +1,8 @@
 package: gen
 generate:
-  - types
-  - client
+  models: true
+  client: true
 output: internal/adguard/gen/adguard.gen.go
+output-options:
+  client-type-name: APIClient
+  response-type-suffix: Result

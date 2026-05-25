@@ -17,9 +17,11 @@ import (
 	"github.com/t0mer/aghsync/internal/api"
 	"github.com/t0mer/aghsync/internal/auth"
 	"github.com/t0mer/aghsync/internal/config"
+	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
 	"github.com/t0mer/aghsync/internal/logging"
 	"github.com/t0mer/aghsync/internal/service"
+	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
 )
 
@@ -78,11 +80,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	instanceRepo := instance.NewRepository(s.DB(), installSecret)
+	historyStore := history.New(s.DB())
+	engine := internalsync.NewEngine(instanceRepo, historyStore)
+	dispatcher := internalsync.NewDispatcher(engine)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	dispatcherDone := dispatcher.Start(ctx)
+
+	scheduler := internalsync.NewScheduler(dispatcher)
+	scheduler.Start()
+
+	// Restore saved schedule (if any).
+	if expr, err := cfg.GetSchedulerCron(); err == nil && expr != "" {
+		if err := scheduler.SetSchedule(expr); err != nil {
+			logger.Warn("saved scheduler cron is invalid", "expr", expr, "err", err)
+		}
+	}
+
 	deps := api.Deps{
-		Store:     s,
-		Config:    cfg,
-		Logger:    logger,
-		Instances: instance.NewRepository(s.DB(), installSecret),
+		Store:      s,
+		Config:     cfg,
+		Logger:     logger,
+		Instances:  instanceRepo,
+		History:    historyStore,
+		Dispatcher: dispatcher,
+		Scheduler:  scheduler,
 	}
 	router := api.NewRouter(deps)
 	addr := fmt.Sprintf(":%d", port)
@@ -94,21 +117,30 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
+	srvErr := make(chan error, 1)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", "err", err)
-			os.Exit(1)
+			srvErr <- err
 		}
 	}()
 
-	<-quit
-	logger.Info("shutting down")
+	select {
+	case <-quit:
+		logger.Info("shutting down")
+	case err := <-srvErr:
+		logger.Error("server error", "err", err)
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown error", "err", err)
 	}
+
+	// Ordered graceful shutdown: stop scheduler → cancel dispatcher → wait for in-flight sync.
+	scheduler.Stop()
+	cancel()
+	<-dispatcherDone
 }
 
 func resolveDBPath() string {
