@@ -10,8 +10,17 @@ import (
 
 // TriggerSync handles POST /sync/run. Returns 202 with the queued run ID.
 func TriggerSync(d *internalsync.Dispatcher) http.HandlerFunc {
+	return triggerSyncWithSource(d, "manual")
+}
+
+// TriggerWebhookSync handles POST /webhook/sync. Returns 202 with the queued run ID.
+func TriggerWebhookSync(d *internalsync.Dispatcher) http.HandlerFunc {
+	return triggerSyncWithSource(d, "webhook")
+}
+
+func triggerSyncWithSource(d *internalsync.Dispatcher, source string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		runID, err := d.Submit("manual")
+		runID, err := d.Submit(source)
 		if err != nil {
 			if errors.Is(err, internalsync.ErrSyncBusy) {
 				WriteError(w, http.StatusConflict, "sync already in progress")

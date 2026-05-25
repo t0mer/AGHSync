@@ -119,11 +119,17 @@ func TestRouter_DocsRoutes_BypassAuth(t *testing.T) {
 		})
 	}
 
-	// Confirm auth is active: /api/v1/health without credentials should be rejected.
+	// Confirm health is always accessible (unauthenticated liveness probe).
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	require.NotEqual(t, http.StatusOK, w.Code, "/api/v1/health must require auth when token is set")
+	require.Equal(t, http.StatusOK, w.Code, "/api/v1/health must be accessible without auth")
+
+	// Confirm auth is active for a protected endpoint: /api/v1/settings without credentials should be rejected.
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	require.NotEqual(t, http.StatusOK, w2.Code, "/api/v1/settings must require auth when token is set")
 }
 
 func TestRouter_DocsRedirect(t *testing.T) {
@@ -133,8 +139,8 @@ func TestRouter_DocsRedirect(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusMovedPermanently {
-		t.Errorf("expected 301, got %d", w.Code)
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", w.Code)
 	}
 	if loc := w.Header().Get("Location"); loc != "/api/docs/" {
 		t.Errorf("expected Location /api/docs/, got %q", loc)
