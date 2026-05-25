@@ -16,6 +16,9 @@ import (
 // ErrNoMaster is returned when no master instance is configured.
 var ErrNoMaster = errors.New("no master instance configured")
 
+// ErrPartialFailure is returned by Run when at least one child sync failed.
+var ErrPartialFailure = errors.New("partial failure: one or more child instances failed")
+
 // Engine runs a full configuration sync from master to all child instances.
 type Engine struct {
 	instances *instance.Repository
@@ -45,10 +48,18 @@ func (e *Engine) Run(ctx context.Context, runID, triggeredBy string) error {
 
 	finalStatus, err := e.doSync(ctx, runID)
 	if err != nil {
-		_ = e.history.FinishRun(ctx, runID, "error")
+		finCtx := context.Background()
+		_ = e.history.FinishRun(finCtx, runID, "error")
 		return err
 	}
-	return e.history.FinishRun(ctx, runID, finalStatus)
+	finCtx := context.Background()
+	if finishErr := e.history.FinishRun(finCtx, runID, finalStatus); finishErr != nil {
+		return finishErr
+	}
+	if finalStatus == "partial_failure" {
+		return ErrPartialFailure
+	}
+	return nil
 }
 
 func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {

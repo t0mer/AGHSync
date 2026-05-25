@@ -73,7 +73,9 @@ func (d *Dispatcher) loop(ctx context.Context) {
 			err := d.engine.Run(ctx, req.runID, req.triggeredBy)
 
 			status := "success"
-			if err != nil {
+			if errors.Is(err, ErrPartialFailure) {
+				status = "partial_failure"
+			} else if err != nil {
 				status = "error"
 			}
 			fin := time.Now().UTC()
