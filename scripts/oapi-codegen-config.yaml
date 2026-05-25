@@ -1,0 +1,5 @@
+package: gen
+generate:
+  - types
+  - client
+output: internal/adguard/gen/adguard.gen.go

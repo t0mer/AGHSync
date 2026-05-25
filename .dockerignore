@@ -1,0 +1,10 @@
+dist/
+web/node_modules/
+internal/webui/dist/
+*.db
+*.log
+.git/
+.github/
+docs/
+*.md
+!README.md
