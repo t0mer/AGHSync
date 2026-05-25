@@ -33,9 +33,19 @@ func TestConfig_SetAndGet(t *testing.T) {
 	cfg := config.New(newTestStore(t))
 
 	require.NoError(t, cfg.Set("mykey", "myval"))
-	val, err := cfg.Get("mykey")
+	val, found, err := cfg.Get("mykey")
 	require.NoError(t, err)
+	require.True(t, found)
 	assert.Equal(t, "myval", val)
+}
+
+func TestConfig_SetEmptyString_NotLostAsDefault(t *testing.T) {
+	cfg := config.New(newTestStore(t))
+
+	require.NoError(t, cfg.Set("cron", ""))
+	val, err := cfg.GetWithDefault("cron", "fallback")
+	require.NoError(t, err)
+	assert.Equal(t, "", val, "stored empty string should not be replaced by default")
 }
 
 func TestConfig_GetWithDefault_MissingKey(t *testing.T) {

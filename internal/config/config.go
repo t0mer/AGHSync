@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -23,23 +24,29 @@ type Config struct {
 // New returns a Config backed by the given store.
 func New(s *store.Store) *Config { return &Config{s: s} }
 
-// Get returns the value for key, or "" if not set.
-func (c *Config) Get(key string) (string, error) {
+// Get returns the value for key and whether it was found.
+func (c *Config) Get(key string) (string, bool, error) {
 	var val string
 	err := c.s.DB().QueryRow("SELECT value FROM app_config WHERE key=?", key).Scan(&val)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return "", false, nil
 	}
-	return val, err
+	if err != nil {
+		return "", false, err
+	}
+	return val, true, nil
 }
 
 // GetWithDefault returns the stored value, or def if the key is absent.
 func (c *Config) GetWithDefault(key, def string) (string, error) {
-	val, err := c.Get(key)
-	if err != nil || val != "" {
-		return val, err
+	val, found, err := c.Get(key)
+	if err != nil {
+		return "", err
 	}
-	return def, nil
+	if !found {
+		return def, nil
+	}
+	return val, nil
 }
 
 // Set upserts a key-value pair into app_config.
@@ -81,20 +88,21 @@ func (c *Config) GetSchedulerCron() (string, error) {
 func (c *Config) SetSchedulerCron(expr string) error { return c.Set("scheduler_cron", expr) }
 
 // InstallSecret returns the per-install 32-byte random secret used for AES-GCM key derivation.
-// Generated once on first call and persisted.
+// Generated once on first call and persisted as hex.
 func (c *Config) InstallSecret() ([]byte, error) {
-	val, err := c.Get("install_secret")
+	val, found, err := c.Get("install_secret")
 	if err != nil {
 		return nil, err
 	}
-	if val != "" {
-		return []byte(val), nil
+	if found {
+		return hex.DecodeString(val)
 	}
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		return nil, fmt.Errorf("generate install secret: %w", err)
 	}
-	if err := c.Set("install_secret", string(secret)); err != nil {
+	encoded := hex.EncodeToString(secret)
+	if err := c.Set("install_secret", encoded); err != nil {
 		return nil, err
 	}
 	return secret, nil
