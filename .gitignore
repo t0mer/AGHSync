@@ -16,3 +16,5 @@ CLAUDE.md
 coverage.out
 docs/superpowers/
 /aghsync
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep
