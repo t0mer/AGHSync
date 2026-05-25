@@ -86,12 +86,10 @@ func main() {
 	dispatcher := internalsync.NewDispatcher(engine)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	_ = dispatcher.Start(ctx)
+	dispatcherDone := dispatcher.Start(ctx)
 
 	scheduler := internalsync.NewScheduler(dispatcher)
 	scheduler.Start()
-	defer scheduler.Stop()
 
 	// Restore saved schedule (if any).
 	if expr, err := cfg.GetSchedulerCron(); err == nil && expr != "" {
@@ -119,21 +117,30 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
+	srvErr := make(chan error, 1)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", "err", err)
-			os.Exit(1)
+			srvErr <- err
 		}
 	}()
 
-	<-quit
-	logger.Info("shutting down")
+	select {
+	case <-quit:
+		logger.Info("shutting down")
+	case err := <-srvErr:
+		logger.Error("server error", "err", err)
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown error", "err", err)
 	}
+
+	// Ordered graceful shutdown: stop scheduler → cancel dispatcher → wait for in-flight sync.
+	scheduler.Stop()
+	cancel()
+	<-dispatcherDone
 }
 
 func resolveDBPath() string {
