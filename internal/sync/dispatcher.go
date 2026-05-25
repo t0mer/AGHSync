@@ -43,8 +43,15 @@ func NewDispatcher(engine *Engine) *Dispatcher {
 }
 
 // Start begins the dispatch loop in a goroutine. Cancel ctx to stop.
-func (d *Dispatcher) Start(ctx context.Context) {
-	go d.loop(ctx)
+// The returned channel is closed when the loop goroutine exits, allowing
+// callers to wait for any in-flight run to finish before process exit.
+func (d *Dispatcher) Start(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		d.loop(ctx)
+	}()
+	return done
 }
 
 func (d *Dispatcher) loop(ctx context.Context) {
@@ -99,6 +106,9 @@ func (d *Dispatcher) Submit(triggeredBy string) (string, error) {
 
 // Status returns the current (running) and last (completed) run status.
 // Either may be nil if no run has started yet.
+// RunStatus values are never mutated after being stored — new structs are always
+// allocated on each state transition — so a caller holding the returned pointer
+// after the lock is released sees a consistent, immutable snapshot.
 func (d *Dispatcher) Status() (current, last *RunStatus) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()

@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/robfig/cron/v3"
 )
@@ -20,7 +21,7 @@ type Scheduler struct {
 func NewScheduler(dispatcher *Dispatcher) *Scheduler {
 	return &Scheduler{
 		dispatcher: dispatcher,
-		cron:       cron.New(),
+		cron:       cron.New(cron.WithLocation(time.UTC)),
 	}
 }
 
@@ -46,9 +47,9 @@ func (s *Scheduler) SetSchedule(expr string) error {
 	}
 
 	id, err := s.cron.AddFunc(expr, func() {
-		if _, err := s.dispatcher.Submit("scheduler"); err != nil && err != ErrSyncBusy {
-			_ = err
-		}
+		// Submit returns ErrSyncBusy when a sync is already queued/running; that
+		// is expected and silently skipped — the cron will retry on the next tick.
+		_, _ = s.dispatcher.Submit("scheduler")
 	})
 	if err != nil {
 		return fmt.Errorf("add cron job: %w", err)

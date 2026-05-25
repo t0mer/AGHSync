@@ -45,22 +45,14 @@ func TestDispatcher_Submit_ReturnsRunID(t *testing.T) {
 
 func TestDispatcher_Submit_BusyReturnsSyncBusy(t *testing.T) {
 	d := newTestDispatcher(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	d.Start(ctx)
-
-	// First submit should succeed.
+	// Do NOT call d.Start() — the queue depth is 1, so without a consumer
+	// the first Submit fills the buffer and the second must return ErrSyncBusy.
 	runID1, err := d.Submit("manual")
 	require.NoError(t, err)
 	assert.NotEmpty(t, runID1)
 
-	// Second submit may or may not race; if it errors, it must be ErrSyncBusy.
-	runID2, err2 := d.Submit("manual")
-	if err2 != nil {
-		assert.ErrorIs(t, err2, internalsync.ErrSyncBusy)
-	} else {
-		assert.NotEmpty(t, runID2)
-	}
+	_, err2 := d.Submit("manual")
+	require.ErrorIs(t, err2, internalsync.ErrSyncBusy)
 }
 
 func TestDispatcher_Status_ReflectsLastRun(t *testing.T) {
