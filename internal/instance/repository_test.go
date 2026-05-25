@@ -226,3 +226,20 @@ func TestRepository_GetSyncConfig_NotFound(t *testing.T) {
 	_, err := repo.GetSyncConfig(context.Background(), "nope")
 	assert.ErrorIs(t, err, instance.ErrNotFound)
 }
+
+// --- GetDecryptedPassword ---
+
+func TestRepository_GetDecryptedPassword(t *testing.T) {
+	repo := openRepo(t)
+	ctx := context.Background()
+
+	inst, err := repo.Create(ctx, "test", "http://agh", "admin", "secret123", false, false)
+	require.NoError(t, err)
+
+	pw, err := repo.GetDecryptedPassword(ctx, inst.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "secret123", pw)
+
+	_, err = repo.GetDecryptedPassword(ctx, "nonexistent")
+	assert.ErrorIs(t, err, instance.ErrNotFound)
+}
