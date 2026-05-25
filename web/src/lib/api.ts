@@ -13,17 +13,31 @@ export interface Credentials {
   password: string
 }
 
+// Pre-encoded Basic auth value (base64). Used when credentials are restored
+// from sessionStorage to avoid storing the raw password.
+export interface EncodedCredentials {
+  encodedAuth: string
+}
+
+export type AnyCredentials = Credentials | EncodedCredentials
+
+function encodeCredentials(creds: AnyCredentials): string {
+  if ('encodedAuth' in creds) return creds.encodedAuth
+  return btoa(`${creds.username}:${creds.password}`)
+}
+
 export interface FetchOptions extends Omit<RequestInit, 'headers' | 'credentials'> {
-  credentials: Credentials | null
+  credentials: AnyCredentials | null
 }
 
 export async function apiFetch<T = unknown>(path: string, opts: FetchOptions): Promise<T> {
   const { credentials, ...rest } = opts
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
+  const headers: Record<string, string> = {}
   if (credentials) {
-    headers['Authorization'] = 'Basic ' + btoa(`${credentials.username}:${credentials.password}`)
+    headers['Authorization'] = 'Basic ' + encodeCredentials(credentials)
+  }
+  if (rest.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
   }
   const res = await fetch(path, { method: 'GET', ...rest, headers })
   if (!res.ok) {

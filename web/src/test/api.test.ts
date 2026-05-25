@@ -39,6 +39,7 @@ describe('apiFetch', () => {
   })
 
   it('ApiError carries status code', async () => {
+    expect.assertions(2)
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'conflict' }), { status: 409 })
     )

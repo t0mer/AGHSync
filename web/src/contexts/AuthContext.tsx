@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { type Credentials } from '@/lib/api'
+import { type AnyCredentials } from '@/lib/api'
 
 interface AuthState {
-  credentials: Credentials | null
+  credentials: AnyCredentials | null
   authRequired: boolean | null
 }
 
@@ -13,13 +13,15 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const SESSION_KEY = 'aghsync_credentials'
+const SESSION_KEY = 'aghsync_auth'
 
-function loadFromSession(): Credentials | null {
+function loadFromSession(): { encodedAuth: string } | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as Credentials
+    if (typeof raw !== 'string' || raw.length === 0) return null
+    // Validate it looks like a base64 string
+    atob(raw)  // throws if invalid base64
+    return { encodedAuth: raw }
   } catch {
     return null
   }
@@ -29,9 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ credentials: null, authRequired: null })
 
   const login = useCallback((username: string, password: string) => {
-    const creds: Credentials = { username, password }
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(creds))
-    setState({ credentials: creds, authRequired: true })
+    const encoded = btoa(`${username}:${password}`)
+    sessionStorage.setItem(SESSION_KEY, encoded)
+    setState({ credentials: { encodedAuth: encoded }, authRequired: true })
   }, [])
 
   const logout = useCallback(() => {
