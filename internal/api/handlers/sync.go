@@ -48,7 +48,7 @@ func SetSchedule(cfg *config.Config, sched *internalsync.Scheduler) http.Handler
 			return
 		}
 		if err := sched.SetSchedule(req.Cron); err != nil {
-			WriteError(w, http.StatusBadRequest, err.Error())
+			WriteError(w, http.StatusBadRequest, "invalid cron expression")
 			return
 		}
 		if err := cfg.SetSchedulerCron(req.Cron); err != nil {

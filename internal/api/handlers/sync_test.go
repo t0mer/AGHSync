@@ -89,6 +89,10 @@ func TestSetSchedule_ValidExpression(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "0 * * * *", resp["cron"])
 }
 
 func TestSetSchedule_InvalidExpression_Returns400(t *testing.T) {
@@ -121,4 +125,33 @@ func TestSetSchedule_Empty_Disables(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestTriggerSync_Returns409WhenBusy(t *testing.T) {
+	// Build a dispatcher without starting it so the queue stays full.
+	s, err := store.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
+
+	secret := make([]byte, 32)
+	repo := instance.NewRepository(s.DB(), secret)
+	hs := history.New(s.DB())
+	engine := internalsync.NewEngine(repo, hs)
+	d := internalsync.NewDispatcher(engine)
+	// No d.Start() — queue is drained by nobody.
+
+	r := chi.NewRouter()
+	r.Post("/sync/run", handlers.TriggerSync(d))
+
+	// First request fills the queue.
+	req1 := httptest.NewRequest(http.MethodPost, "/sync/run", nil)
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, req1)
+	require.Equal(t, http.StatusAccepted, w1.Code)
+
+	// Second request must see ErrSyncBusy → 409.
+	req2 := httptest.NewRequest(http.MethodPost, "/sync/run", nil)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusConflict, w2.Code)
 }

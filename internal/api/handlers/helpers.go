@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 )
 
@@ -19,7 +20,9 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 
 // DecodeJSON decodes the request body into dst.
 // Returns an error for unknown fields or malformed JSON.
+// Body reads are limited to 1 MB to prevent unbounded memory consumption.
 func DecodeJSON(r *http.Request, dst any) error {
+	r.Body = io.NopCloser(io.LimitReader(r.Body, 1<<20))
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	return dec.Decode(dst)
