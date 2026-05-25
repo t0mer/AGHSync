@@ -98,15 +98,14 @@ func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {
 
 	var wg sync.WaitGroup
 	for _, child := range children {
-		child := child
 		wg.Add(1)
-		go func() {
+		go func(child *instance.Instance) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			hasErr := e.syncChild(ctx, runID, child, snapshots)
 			resultsCh <- childResult{hasError: hasErr}
-		}()
+		}(child)
 	}
 	wg.Wait()
 	close(resultsCh)

@@ -53,7 +53,7 @@ func TestEngine_Run_NoMaster(t *testing.T) {
 
 	runID := uuid.NewString()
 	err := engine.Run(context.Background(), runID, "test")
-	assert.Error(t, err, "should fail with no master configured")
+	assert.ErrorIs(t, err, internalsync.ErrNoMaster, "should fail with ErrNoMaster when no master configured")
 }
 
 func TestEngine_Run_MasterNoChildren(t *testing.T) {
