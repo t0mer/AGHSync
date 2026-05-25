@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/t0mer/aghsync/internal/api"
 	"github.com/t0mer/aghsync/internal/api/handlers"
+	"github.com/t0mer/aghsync/internal/auth"
 	"github.com/t0mer/aghsync/internal/config"
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
@@ -91,6 +92,59 @@ func TestRouter_SettingsRoute_Exists(t *testing.T) {
 	router.ServeHTTP(w, req)
 	assert.NotEqual(t, http.StatusNotFound, w.Code)
 	assert.NotEqual(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestRouter_DocsRoutes_BypassAuth(t *testing.T) {
+	deps := newTestDeps(t)
+	// Configure a real token so APIAuth is active (not in bootstrap mode).
+	_, tokenHash, err := auth.GenerateToken()
+	require.NoError(t, err)
+	require.NoError(t, deps.Config.SetAPITokenHash(tokenHash))
+
+	router := api.NewRouter(deps)
+
+	// Docs routes must be accessible without any credentials.
+	docsPaths := []string{
+		"/api/docs/",
+		"/api/docs/openapi.yaml",
+		"/api/docs/swagger-ui.css",
+		"/api/docs/swagger-ui-bundle.js",
+	}
+	for _, path := range docsPaths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code, "docs route must bypass auth")
+		})
+	}
+
+	// Confirm health is always accessible (unauthenticated liveness probe).
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, "/api/v1/health must be accessible without auth")
+
+	// Confirm auth is active for a protected endpoint: /api/v1/settings without credentials should be rejected.
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	require.NotEqual(t, http.StatusOK, w2.Code, "/api/v1/settings must require auth when token is set")
+}
+
+func TestRouter_DocsRedirect(t *testing.T) {
+	router := api.NewRouter(newTestDeps(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/api/docs/" {
+		t.Errorf("expected Location /api/docs/, got %q", loc)
+	}
 }
 
 func TestRouter_SyncAndHistoryRoutes_Exist(t *testing.T) {

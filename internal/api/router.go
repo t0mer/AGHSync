@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/t0mer/aghsync/internal/api/docs"
 	"github.com/t0mer/aghsync/internal/api/handlers"
 	"github.com/t0mer/aghsync/internal/api/middleware"
 	"github.com/t0mer/aghsync/internal/config"
@@ -33,11 +34,20 @@ func NewRouter(deps Deps) http.Handler {
 	r.Use(middleware.RequestLogger(deps.Logger))
 	r.Use(middleware.Recovery(deps.Logger))
 
+	// Health check — unauthenticated (liveness probe).
+	r.Get("/api/v1/health", handlers.Health)
+
+	// API docs — no auth required, served outside /api/v1 group.
+	docsHandler := docs.SwaggerUIHandler()
+	r.Get("/api/docs/openapi.yaml", docs.Spec)
+	r.Get("/api/docs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api/docs/", http.StatusFound)
+	})
+	r.Handle("/api/docs/*", docsHandler)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.APIAuth(deps.Config, deps.Logger))
 		r.Use(middleware.CSRF(deps.Config))
-
-		r.Get("/health", handlers.Health)
 
 		// Instance management
 		r.Get("/instances", handlers.ListInstances(deps.Instances))
@@ -61,7 +71,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Put("/sync/schedule", handlers.SetSchedule(deps.Config, deps.Scheduler))
 
 		// Webhook trigger (same auth as /api/v1 — token or basic auth)
-		r.Post("/webhook/sync", handlers.TriggerSync(deps.Dispatcher))
+		r.Post("/webhook/sync", handlers.TriggerWebhookSync(deps.Dispatcher))
 
 		// History
 		r.Get("/history", handlers.ListHistory(deps.History))
