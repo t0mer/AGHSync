@@ -36,6 +36,20 @@ func TestLogger_RedactsTokenAndAuthorizationFields(t *testing.T) {
 	assert.Equal(t, "***", rec["authorization"])
 }
 
+func TestLogger_RedactsNestedGroupFields(t *testing.T) {
+	var buf bytes.Buffer
+	logger := logging.New(slog.LevelDebug, &buf)
+
+	logger.Info("msg", slog.Group("auth", "password", "hunter2", "username", "alice"))
+
+	var rec map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &rec))
+	auth, ok := rec["auth"].(map[string]any)
+	require.True(t, ok, "auth group should be present")
+	assert.Equal(t, "***", auth["password"], "nested password should be redacted")
+	assert.Equal(t, "alice", auth["username"], "nested username should not be redacted")
+}
+
 func TestLogger_RespectsLogLevel(t *testing.T) {
 	var buf bytes.Buffer
 	logger := logging.New(slog.LevelWarn, &buf)

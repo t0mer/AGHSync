@@ -40,6 +40,17 @@ func (h *redactHandler) WithGroup(name string) slog.Handler {
 }
 
 func redactAttr(a slog.Attr) slog.Attr {
+	// Recurse into groups first — children may have sensitive keys.
+	if a.Value.Kind() == slog.KindGroup {
+		attrs := a.Value.Group()
+		redacted := make([]any, 0, len(attrs))
+		for _, child := range attrs {
+			ra := redactAttr(child)
+			redacted = append(redacted, ra.Key, ra.Value.Any())
+		}
+		return slog.Group(a.Key, redacted...)
+	}
+	// Check this attribute's own key.
 	lower := strings.ToLower(a.Key)
 	for _, part := range sensitiveKeyParts {
 		if strings.Contains(lower, part) {
