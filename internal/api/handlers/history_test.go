@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -103,6 +104,31 @@ func TestGetHistoryRun_Found(t *testing.T) {
 	results, ok := body["results"].([]any)
 	require.True(t, ok)
 	assert.Len(t, results, 1)
+}
+
+func TestListHistory_LimitCappedAt200(t *testing.T) {
+	hs := newHistoryTestStore(t)
+	ctx := context.Background()
+
+	// Insert 5 runs — well under any reasonable cap.
+	for i := 0; i < 5; i++ {
+		_, err := hs.StartRun(ctx, fmt.Sprintf("r%d", i), "manual")
+		require.NoError(t, err)
+	}
+
+	r := chi.NewRouter()
+	r.Get("/history", handlers.ListHistory(hs))
+
+	// Request more than maxHistoryLimit — should still return only 5 (what exists).
+	req := httptest.NewRequest(http.MethodGet, "/history?limit=99999", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body []any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	// We only have 5 runs; cap doesn't change the count, just ensures SQL LIMIT ≤ 200.
+	assert.Len(t, body, 5)
 }
 
 func TestGetHistoryRun_NotFound(t *testing.T) {

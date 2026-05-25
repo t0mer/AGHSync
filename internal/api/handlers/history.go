@@ -9,6 +9,8 @@ import (
 	"github.com/t0mer/aghsync/internal/history"
 )
 
+const maxHistoryLimit = 200
+
 // ListHistory handles GET /history?limit=N&offset=N.
 func ListHistory(hs *history.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -16,6 +18,9 @@ func ListHistory(hs *history.Store) http.HandlerFunc {
 		offset := 0
 		if v := r.URL.Query().Get("limit"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				if n > maxHistoryLimit {
+					n = maxHistoryLimit
+				}
 				limit = n
 			}
 		}
@@ -38,7 +43,7 @@ func ListHistory(hs *history.Store) http.HandlerFunc {
 }
 
 type runWithResults struct {
-	*history.Run
+	history.Run
 	Results []*history.Result `json:"results"`
 }
 
@@ -65,6 +70,6 @@ func GetHistoryRun(hs *history.Store) http.HandlerFunc {
 		if results == nil {
 			results = []*history.Result{}
 		}
-		WriteJSON(w, http.StatusOK, runWithResults{run, results})
+		WriteJSON(w, http.StatusOK, runWithResults{*run, results})
 	}
 }
