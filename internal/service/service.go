@@ -17,7 +17,12 @@ type program struct {
 	stopFn  func() error
 }
 
-func (p *program) Start(s service.Service) error { return p.startFn() }
+func (p *program) Start(s service.Service) error {
+	if p.startFn == nil {
+		return nil
+	}
+	return p.startFn()
+}
 func (p *program) Stop(s service.Service) error {
 	if p.stopFn != nil {
 		return p.stopFn()

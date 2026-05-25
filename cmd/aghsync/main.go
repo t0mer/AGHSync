@@ -7,7 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
+
+	"golang.org/x/term"
 
 	"github.com/t0mer/aghsync/internal/api"
 	"github.com/t0mer/aghsync/internal/config"
@@ -75,12 +80,25 @@ func main() {
 	logger.Info("starting server", "addr", addr, "version", version)
 
 	srv := &http.Server{Addr: addr, Handler: router}
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("server stopped", "err", err)
-		os.Exit(1)
+	// Shutdown on SIGTERM or SIGINT.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-quit
+	logger.Info("shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("shutdown error", "err", err)
 	}
 }
 
@@ -102,17 +120,26 @@ func resolveLogLevel(flagVal string) string {
 }
 
 func resolvePort(cfg *config.Config, flagPort int) (int, error) {
+	var port int
 	if e := os.Getenv("AGHSYNC_PORT"); e != "" {
 		p, err := strconv.Atoi(e)
 		if err != nil {
 			return 0, fmt.Errorf("invalid AGHSYNC_PORT %q: %w", e, err)
 		}
-		return p, nil
+		port = p
+	} else if flagPort != 0 {
+		port = flagPort
+	} else {
+		p, err := cfg.GetPort()
+		if err != nil {
+			return 0, err
+		}
+		port = p
 	}
-	if flagPort != 0 {
-		return flagPort, nil
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("port %d is out of range (1–65535)", port)
 	}
-	return cfg.GetPort()
+	return port, nil
 }
 
 // handleResetPassword prompts for a new password and stores it.
@@ -120,9 +147,14 @@ func resolvePort(cfg *config.Config, flagPort int) (int, error) {
 // this stub stores the plaintext under a temporary key until then.
 func handleResetPassword(cfg *config.Config) error {
 	fmt.Print("New password: ")
-	var pw string
-	if _, err := fmt.Scanln(&pw); err != nil {
-		return err
+	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("read password: %w", err)
+	}
+	fmt.Println() // newline after the hidden input
+	pw := string(pwBytes)
+	if pw == "" {
+		return fmt.Errorf("password cannot be empty")
 	}
 	return cfg.Set("_ui_password_plain_tmp", pw)
 }
