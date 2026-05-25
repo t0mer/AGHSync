@@ -93,6 +93,46 @@ func TestRouter_SettingsRoute_Exists(t *testing.T) {
 	assert.NotEqual(t, http.StatusMethodNotAllowed, w.Code)
 }
 
+func TestRouter_DocsRoutes_NoAuth(t *testing.T) {
+	router := api.NewRouter(newTestDeps(t))
+
+	tests := []struct {
+		path string
+		want int
+	}{
+		{"/api/docs/", http.StatusOK},
+		{"/api/docs/openapi.yaml", http.StatusOK},
+		{"/api/docs/swagger-ui.css", http.StatusOK},
+		{"/api/docs/swagger-ui-bundle.js", http.StatusOK},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if w.Code != tc.want {
+				t.Errorf("GET %s: expected %d, got %d", tc.path, tc.want, w.Code)
+			}
+		})
+	}
+}
+
+func TestRouter_DocsRedirect(t *testing.T) {
+	router := api.NewRouter(newTestDeps(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMovedPermanently {
+		t.Errorf("expected 301, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/api/docs/" {
+		t.Errorf("expected Location /api/docs/, got %q", loc)
+	}
+}
+
 func TestRouter_SyncAndHistoryRoutes_Exist(t *testing.T) {
 	deps := newTestDeps(t)
 	router := api.NewRouter(deps)
