@@ -71,22 +71,22 @@ func (e DNSConfigBlockingMode) Valid() bool {
 
 // Defines values for DNSConfigUpstreamMode.
 const (
-	DNSConfigUpstreamModeMapConstDeprecatedTrueDescriptionUseloadBalanceInstead DNSConfigUpstreamMode = "map[const: deprecated:true description:Use `load_balance` instead.]"
-	DNSConfigUpstreamModeMapConstFastestAddr                                    DNSConfigUpstreamMode = "map[const:fastest_addr]"
-	DNSConfigUpstreamModeMapConstLoadBalance                                    DNSConfigUpstreamMode = "map[const:load_balance]"
-	DNSConfigUpstreamModeMapConstParallel                                       DNSConfigUpstreamMode = "map[const:parallel]"
+	DNSConfigUpstreamModeEmpty       DNSConfigUpstreamMode = ""
+	DNSConfigUpstreamModeFastestAddr DNSConfigUpstreamMode = "fastest_addr"
+	DNSConfigUpstreamModeLoadBalance DNSConfigUpstreamMode = "load_balance"
+	DNSConfigUpstreamModeParallel    DNSConfigUpstreamMode = "parallel"
 )
 
 // Valid indicates whether the value is a known member of the DNSConfigUpstreamMode enum.
 func (e DNSConfigUpstreamMode) Valid() bool {
 	switch e {
-	case DNSConfigUpstreamModeMapConstDeprecatedTrueDescriptionUseloadBalanceInstead:
+	case DNSConfigUpstreamModeEmpty:
 		return true
-	case DNSConfigUpstreamModeMapConstFastestAddr:
+	case DNSConfigUpstreamModeFastestAddr:
 		return true
-	case DNSConfigUpstreamModeMapConstLoadBalance:
+	case DNSConfigUpstreamModeLoadBalance:
 		return true
-	case DNSConfigUpstreamModeMapConstParallel:
+	case DNSConfigUpstreamModeParallel:
 		return true
 	default:
 		return false
@@ -233,25 +233,25 @@ func (e QueryLogConfigInterval) Valid() bool {
 
 // Defines values for QueryLogItemClientProto.
 const (
-	Dnscrypt QueryLogItemClientProto = "dnscrypt"
-	Doh      QueryLogItemClientProto = "doh"
-	Doq      QueryLogItemClientProto = "doq"
-	Dot      QueryLogItemClientProto = "dot"
-	Empty    QueryLogItemClientProto = ""
+	QueryLogItemClientProtoDnscrypt QueryLogItemClientProto = "dnscrypt"
+	QueryLogItemClientProtoDoh      QueryLogItemClientProto = "doh"
+	QueryLogItemClientProtoDoq      QueryLogItemClientProto = "doq"
+	QueryLogItemClientProtoDot      QueryLogItemClientProto = "dot"
+	QueryLogItemClientProtoEmpty    QueryLogItemClientProto = ""
 )
 
 // Valid indicates whether the value is a known member of the QueryLogItemClientProto enum.
 func (e QueryLogItemClientProto) Valid() bool {
 	switch e {
-	case Dnscrypt:
+	case QueryLogItemClientProtoDnscrypt:
 		return true
-	case Doh:
+	case QueryLogItemClientProtoDoh:
 		return true
-	case Doq:
+	case QueryLogItemClientProtoDoq:
 		return true
-	case Dot:
+	case QueryLogItemClientProtoDot:
 		return true
-	case Empty:
+	case QueryLogItemClientProtoEmpty:
 		return true
 	default:
 		return false
@@ -350,22 +350,22 @@ func (e DnsInfo200JSONResponseBodyBlockingMode) Valid() bool {
 
 // Defines values for DnsInfo200JSONResponseBodyUpstreamMode.
 const (
-	DnsInfo200JSONResponseBodyUpstreamModeMapConstDeprecatedTrueDescriptionUseloadBalanceInstead DnsInfo200JSONResponseBodyUpstreamMode = "map[const: deprecated:true description:Use `load_balance` instead.]"
-	DnsInfo200JSONResponseBodyUpstreamModeMapConstFastestAddr                                    DnsInfo200JSONResponseBodyUpstreamMode = "map[const:fastest_addr]"
-	DnsInfo200JSONResponseBodyUpstreamModeMapConstLoadBalance                                    DnsInfo200JSONResponseBodyUpstreamMode = "map[const:load_balance]"
-	DnsInfo200JSONResponseBodyUpstreamModeMapConstParallel                                       DnsInfo200JSONResponseBodyUpstreamMode = "map[const:parallel]"
+	Empty       DnsInfo200JSONResponseBodyUpstreamMode = ""
+	FastestAddr DnsInfo200JSONResponseBodyUpstreamMode = "fastest_addr"
+	LoadBalance DnsInfo200JSONResponseBodyUpstreamMode = "load_balance"
+	Parallel    DnsInfo200JSONResponseBodyUpstreamMode = "parallel"
 )
 
 // Valid indicates whether the value is a known member of the DnsInfo200JSONResponseBodyUpstreamMode enum.
 func (e DnsInfo200JSONResponseBodyUpstreamMode) Valid() bool {
 	switch e {
-	case DnsInfo200JSONResponseBodyUpstreamModeMapConstDeprecatedTrueDescriptionUseloadBalanceInstead:
+	case Empty:
 		return true
-	case DnsInfo200JSONResponseBodyUpstreamModeMapConstFastestAddr:
+	case FastestAddr:
 		return true
-	case DnsInfo200JSONResponseBodyUpstreamModeMapConstLoadBalance:
+	case LoadBalance:
 		return true
-	case DnsInfo200JSONResponseBodyUpstreamModeMapConstParallel:
+	case Parallel:
 		return true
 	default:
 		return false
