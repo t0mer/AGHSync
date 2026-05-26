@@ -53,12 +53,8 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 		return c.get(ctx, "/control/parental/status")
 	case "safesearch":
 		return c.get(ctx, "/control/safesearch/status")
-	case "stats":
-		return c.get(ctx, "/control/stats_info")
 	case "tls":
 		return c.get(ctx, "/control/tls/status")
-	case "log":
-		return c.get(ctx, "/control/querylog_info")
 	default:
 		return nil, fmt.Errorf("unknown config type: %s", configType)
 	}
@@ -85,12 +81,8 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 		return c.applyToggle(ctx, data, "/control/parental/enable", "/control/parental/disable")
 	case "safesearch":
 		return c.put(ctx, "/control/safesearch/settings", data)
-	case "stats":
-		return c.post(ctx, "/control/stats_config", data)
 	case "tls":
 		return c.post(ctx, "/control/tls/configure", data)
-	case "log":
-		return c.post(ctx, "/control/querylog_config", data)
 	default:
 		return fmt.Errorf("unknown config type: %s", configType)
 	}

@@ -21,8 +21,8 @@ import { ApiError, testConnection, type Instance, type SyncConfigEntry } from '@
 
 const ALL_CONFIG_TYPES = [
   'blocked_services', 'clients', 'dhcp', 'dns',
-  'filtering', 'log', 'parental', 'rewrite',
-  'safebrowsing', 'safesearch', 'stats', 'tls',
+  'filtering', 'parental', 'rewrite',
+  'safebrowsing', 'safesearch', 'tls',
 ]
 
 interface InstanceFormData {

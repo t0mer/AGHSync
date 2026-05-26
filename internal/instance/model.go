@@ -28,11 +28,9 @@ var AllConfigTypes = []string{
 	"dhcp",
 	"dns",
 	"filtering",
-	"log",
 	"parental",
 	"rewrite",
 	"safebrowsing",
 	"safesearch",
-	"stats",
 	"tls",
 }
