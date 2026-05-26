@@ -119,3 +119,21 @@ export interface Settings {
   scheduler_cron: string
   port: number
 }
+
+export interface TestConnectionParams {
+  address: string
+  username: string
+  password: string
+  tls_skip_verify: boolean
+}
+
+export async function testConnection(
+  params: TestConnectionParams,
+  credentials: AnyCredentials | null
+): Promise<void> {
+  await apiFetch<{ ok: boolean }>('/api/v1/instances/test-connection', {
+    credentials,
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
