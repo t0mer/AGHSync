@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -253,4 +254,58 @@ func TestCreateInstance_TimestampsRFC3339(t *testing.T) {
 	// Should parse as RFC3339 without error
 	_, err := time.Parse(time.RFC3339, resp["created_at"].(string))
 	assert.NoError(t, err)
+}
+
+// --- TestConnectionHandler ---
+
+func startFakeAGH(t *testing.T, loginStatus int) string {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/control/status", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(loginStatus)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestTestConnectionHandler_Success(t *testing.T) {
+	aghURL := startFakeAGH(t, http.StatusOK)
+	body := fmt.Sprintf(`{"address":%q,"username":"admin","password":"secret","tls_skip_verify":false}`, aghURL)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/instances/test-connection", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.TestConnectionHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, true, resp["ok"])
+}
+
+func TestTestConnectionHandler_BadCredentials(t *testing.T) {
+	aghURL := startFakeAGH(t, http.StatusUnauthorized)
+	body := fmt.Sprintf(`{"address":%q,"username":"admin","password":"wrong","tls_skip_verify":false}`, aghURL)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/instances/test-connection", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.TestConnectionHandler(w, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Contains(t, resp["error"], "invalid username or password")
+}
+
+func TestTestConnectionHandler_MissingAddress(t *testing.T) {
+	body := `{"username":"admin","password":"secret","tls_skip_verify":false}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/instances/test-connection", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.TestConnectionHandler(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
