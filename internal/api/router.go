@@ -1,8 +1,10 @@
 package api
 
 import (
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -14,6 +16,7 @@ import (
 	"github.com/t0mer/aghsync/internal/instance"
 	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
+	"github.com/t0mer/aghsync/internal/webui"
 )
 
 // Deps holds the application dependencies threaded through the router.
@@ -78,5 +81,29 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
 	})
 
+	// SPA catch-all: serve static assets; fall back to index.html for client-side routes.
+	sub, err := fs.Sub(webui.FS, "dist")
+	if err != nil {
+		panic("webui: cannot sub dist: " + err.Error())
+	}
+	r.Handle("/*", spaHandler(sub))
+
 	return r
+}
+
+// spaHandler serves files from the embedded FS. For paths that do not exist
+// in the FS (i.e. client-side React Router routes), it falls back to index.html
+// so the browser-side router can take over.
+func spaHandler(fsys fs.FS) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(fsys, path); err != nil {
+			http.ServeFileFS(w, r, fsys, "index.html")
+			return
+		}
+		http.FileServerFS(fsys).ServeHTTP(w, r)
+	})
 }

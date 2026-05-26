@@ -1,0 +1,82 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, type AnyCredentials, type Instance, type SyncConfigEntry } from '@/lib/api'
+
+export function useInstances(credentials: AnyCredentials | null) {
+  const qc = useQueryClient()
+
+  const { data, isLoading, error } = useQuery<Instance[]>({
+    queryKey: ['instances'],
+    queryFn: () => apiFetch<Instance[]>('/api/v1/instances', { credentials }),
+  })
+
+  const createInstance = useMutation({
+    mutationFn: (body: {
+      name: string
+      address: string
+      username: string
+      password: string
+      is_master: boolean
+      tls_skip_verify: boolean
+    }) =>
+      apiFetch<Instance>('/api/v1/instances', {
+        credentials,
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+  })
+
+  const updateInstance = useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string
+      name: string
+      address: string
+      username: string
+      password: string | null
+      tls_skip_verify: boolean
+    }) =>
+      apiFetch<Instance>(`/api/v1/instances/${id}`, {
+        credentials,
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+  })
+
+  const deleteInstance = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/v1/instances/${id}`, { credentials, method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+  })
+
+  const promoteInstance = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<Instance>(`/api/v1/instances/${id}/promote`, { credentials, method: 'PUT' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+  })
+
+  const getSyncConfig = (id: string) =>
+    apiFetch<SyncConfigEntry[]>(`/api/v1/instances/${id}/sync-config`, { credentials })
+
+  const updateSyncConfig = (id: string, config: SyncConfigEntry[]) =>
+    apiFetch<SyncConfigEntry[]>(`/api/v1/instances/${id}/sync-config`, {
+      credentials,
+      method: 'PUT',
+      body: JSON.stringify({ config }),
+    })
+
+  return {
+    instances: data ?? [],
+    isLoading,
+    error,
+    createInstance,
+    updateInstance,
+    deleteInstance,
+    promoteInstance,
+    getSyncConfig,
+    updateSyncConfig,
+  }
+}
