@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/t0mer/aghsync/internal/adguard"
@@ -207,6 +209,20 @@ type testConnectionRequest struct {
 	TLSSkipVerify bool   `json:"tls_skip_verify"`
 }
 
+func validateInstanceAddress(address string) error {
+	u, err := url.Parse(address)
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("address must use http or https scheme")
+	}
+	if u.Host == "" {
+		return fmt.Errorf("address must include a host")
+	}
+	return nil
+}
+
 // TestConnectionHandler tests connectivity to an AdGuardHome instance without saving it.
 func TestConnectionHandler(w http.ResponseWriter, r *http.Request) {
 	var req testConnectionRequest
@@ -216,6 +232,10 @@ func TestConnectionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Address == "" {
 		WriteError(w, http.StatusBadRequest, "address is required")
+		return
+	}
+	if err := validateInstanceAddress(req.Address); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	c := adguard.NewClient(req.Address, req.Username, req.Password, req.TLSSkipVerify)

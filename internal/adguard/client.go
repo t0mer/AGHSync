@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Client talks to a single AdGuardHome instance over HTTP.
@@ -98,6 +99,8 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 // TestConnection verifies connectivity and credentials using the same Basic Auth
 // mechanism that all other API calls use.
 func (c *Client) TestConnection(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/control/status", nil)
 	if err != nil {
 		return err
@@ -116,7 +119,7 @@ func (c *Client) TestConnection(ctx context.Context) error {
 	case http.StatusTooManyRequests:
 		return fmt.Errorf("too many login attempts — try again later")
 	default:
-		b, _ := io.ReadAll(resp.Body)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
 	}
 }

@@ -310,6 +310,20 @@ func TestTestConnectionHandler_MissingAddress(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestTestConnectionHandler_InvalidScheme(t *testing.T) {
+	body := `{"address":"file:///etc/passwd","username":"u","password":"p","tls_skip_verify":false}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/instances/test-connection", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.TestConnectionHandler(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Contains(t, resp["error"], "http or https")
+}
+
 func TestTestConnectionHandler_Unreachable(t *testing.T) {
 	body := `{"address":"http://127.0.0.1:1","username":"u","password":"p","tls_skip_verify":false}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/instances/test-connection", bytes.NewBufferString(body))
