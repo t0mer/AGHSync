@@ -87,9 +87,24 @@ func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {
 	}
 	masterClient := adguard.NewClient(master.Address, master.Username, masterPw, master.TLSSkipVerify)
 
-	// Take snapshots from master for each config type.
+	// Determine which config types are enabled on the master.
+	syncConf, err := e.instances.GetSyncConfig(ctx, master.ID)
+	if err != nil {
+		return "", fmt.Errorf("get master sync config: %w", err)
+	}
+	enabledTypes := make(map[string]bool)
+	for _, sc := range syncConf {
+		if sc.Enabled {
+			enabledTypes[sc.ConfigType] = true
+		}
+	}
+
+	// Take snapshots from master for enabled config types only.
 	snapshots := make(map[string]json.RawMessage)
 	for _, ct := range instance.AllConfigTypes {
+		if !enabledTypes[ct] {
+			continue
+		}
 		snap, err := masterClient.Snapshot(ctx, ct)
 		if err != nil {
 			e.logger.Warn("master snapshot failed", "config_type", ct, "err", err)
@@ -142,26 +157,10 @@ func (e *Engine) syncChild(ctx context.Context, runID string, child *instance.In
 		return true
 	}
 
-	syncConf, err := e.instances.GetSyncConfig(ctx, child.ID)
-	if err != nil {
-		e.logger.Error("get sync config", "instance", child.Name, "err", err)
-		return true
-	}
-	enabledTypes := make(map[string]bool)
-	for _, sc := range syncConf {
-		if sc.Enabled {
-			enabledTypes[sc.ConfigType] = true
-		}
-	}
-
 	childClient := adguard.NewClient(child.Address, child.Username, childPw, child.TLSSkipVerify)
 
 	anyError := false
 	for ct, masterSnap := range snapshots {
-		if !enabledTypes[ct] {
-			continue
-		}
-
 		// Capture child's state before applying (for diff).
 		before, _ := childClient.Snapshot(ctx, ct)
 		var diffJSON *string

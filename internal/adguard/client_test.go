@@ -148,3 +148,49 @@ func TestClient_UnknownConfigType(t *testing.T) {
 	err = c.Apply(context.Background(), "invalid_type", nil)
 	assert.Error(t, err)
 }
+
+func TestClient_TestConnection_Success(t *testing.T) {
+	srv := newTestServer(t, map[string]http.HandlerFunc{
+		"/control/status": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			user, pass, ok := r.BasicAuth()
+			assert.True(t, ok)
+			assert.Equal(t, "admin", user)
+			assert.Equal(t, "secret", pass)
+			w.WriteHeader(http.StatusOK)
+		},
+	})
+	c := adguard.NewClient(srv.URL, "admin", "secret", false)
+	assert.NoError(t, c.TestConnection(context.Background()))
+}
+
+func TestClient_TestConnection_BadCredentials(t *testing.T) {
+	srv := newTestServer(t, map[string]http.HandlerFunc{
+		"/control/status": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		},
+	})
+	c := adguard.NewClient(srv.URL, "admin", "wrong", false)
+	err := c.TestConnection(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid username or password")
+}
+
+func TestClient_TestConnection_RateLimited(t *testing.T) {
+	srv := newTestServer(t, map[string]http.HandlerFunc{
+		"/control/status": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		},
+	})
+	c := adguard.NewClient(srv.URL, "admin", "pass", false)
+	err := c.TestConnection(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too many login attempts")
+}
+
+func TestClient_TestConnection_Unreachable(t *testing.T) {
+	c := adguard.NewClient("http://127.0.0.1:19999", "u", "p", false)
+	err := c.TestConnection(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not connect to")
+}

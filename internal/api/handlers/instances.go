@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/t0mer/aghsync/internal/adguard"
 	"github.com/t0mer/aghsync/internal/instance"
 )
 
@@ -197,4 +200,48 @@ func UpdateSyncConfig(repo *instance.Repository) http.HandlerFunc {
 		}
 		WriteJSON(w, http.StatusOK, cfg)
 	}
+}
+
+type testConnectionRequest struct {
+	Address       string `json:"address"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	TLSSkipVerify bool   `json:"tls_skip_verify"`
+}
+
+func validateInstanceAddress(address string) error {
+	u, err := url.Parse(address)
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("address must use http or https scheme")
+	}
+	if u.Host == "" {
+		return fmt.Errorf("address must include a host")
+	}
+	return nil
+}
+
+// TestConnectionHandler tests connectivity to an AdGuardHome instance without saving it.
+func TestConnectionHandler(w http.ResponseWriter, r *http.Request) {
+	var req testConnectionRequest
+	if err := DecodeJSON(r, &req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Address == "" {
+		WriteError(w, http.StatusBadRequest, "address is required")
+		return
+	}
+	if err := validateInstanceAddress(req.Address); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	c := adguard.NewClient(req.Address, req.Username, req.Password, req.TLSSkipVerify)
+	if err := c.TestConnection(r.Context()); err != nil {
+		WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

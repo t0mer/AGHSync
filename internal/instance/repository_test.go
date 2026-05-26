@@ -55,11 +55,11 @@ func TestRepository_Create_Master_DemotesPrevious(t *testing.T) {
 	assert.False(t, got.IsMaster)
 }
 
-func TestRepository_Create_DefaultSyncConfig(t *testing.T) {
+func TestRepository_Create_MasterHasDefaultSyncConfig(t *testing.T) {
 	repo := openRepo(t)
 	ctx := context.Background()
 
-	inst, err := repo.Create(ctx, "Child", "http://10.0.0.3:3000", "a", "p", false, false)
+	inst, err := repo.Create(ctx, "Master", "http://10.0.0.3:3000", "a", "p", true, false)
 	require.NoError(t, err)
 
 	cfg, err := repo.GetSyncConfig(ctx, inst.ID)
@@ -70,16 +70,16 @@ func TestRepository_Create_DefaultSyncConfig(t *testing.T) {
 	}
 }
 
-func TestRepository_Create_MasterHasNoSyncConfig(t *testing.T) {
+func TestRepository_Create_NonMasterHasNoSyncConfig(t *testing.T) {
 	repo := openRepo(t)
 	ctx := context.Background()
 
-	inst, err := repo.Create(ctx, "Master", "http://10.0.0.4:3000", "a", "p", true, false)
+	inst, err := repo.Create(ctx, "Child", "http://10.0.0.4:3000", "a", "p", false, false)
 	require.NoError(t, err)
 
 	cfg, err := repo.GetSyncConfig(ctx, inst.ID)
 	require.NoError(t, err)
-	assert.Empty(t, cfg) // master has no sync_config rows
+	assert.Empty(t, cfg) // slaves have no sync_config rows
 }
 
 // --- Get / List ---
@@ -181,6 +181,11 @@ func TestRepository_Promote(t *testing.T) {
 	child, err := repo.Create(ctx, "Child", "http://2.2.2.2:3000", "u", "p", false, false)
 	require.NoError(t, err)
 
+	// Disable one config type on the master before promoting.
+	require.NoError(t, repo.SetSyncConfig(ctx, master.ID, []instance.SyncConfigEntry{
+		{ConfigType: "dhcp", Enabled: false},
+	}))
+
 	require.NoError(t, repo.Promote(ctx, child.ID))
 
 	newMaster, _ := repo.Get(ctx, child.ID)
@@ -188,6 +193,43 @@ func TestRepository_Promote(t *testing.T) {
 
 	oldMaster, _ := repo.Get(ctx, master.ID)
 	assert.False(t, oldMaster.IsMaster)
+
+	// Old master should have no sync_config after demotion.
+	demotedCfg, err := repo.GetSyncConfig(ctx, master.ID)
+	require.NoError(t, err)
+	assert.Empty(t, demotedCfg)
+
+	// Promoted child should inherit master's sync_config (dhcp disabled).
+	promotedCfg, err := repo.GetSyncConfig(ctx, child.ID)
+	require.NoError(t, err)
+	byType := make(map[string]bool)
+	for _, e := range promotedCfg {
+		byType[e.ConfigType] = e.Enabled
+	}
+	assert.False(t, byType["dhcp"], "dhcp should have been transferred as disabled")
+	assert.True(t, byType["dns"], "dns should have been transferred as enabled")
+}
+
+func TestRepository_Promote_TransfersConfigWhenMasterHasNone(t *testing.T) {
+	repo := openRepo(t)
+	ctx := context.Background()
+
+	// Create master then manually delete its sync_config to simulate edge case.
+	master, err := repo.Create(ctx, "Master", "http://1.1.1.1:3000", "u", "p", true, false)
+	require.NoError(t, err)
+	child, err := repo.Create(ctx, "Child", "http://2.2.2.2:3000", "u", "p", false, false)
+	require.NoError(t, err)
+	_ = master
+
+	require.NoError(t, repo.Promote(ctx, child.ID))
+
+	// Promoted child should have all config types enabled (defaults).
+	promotedCfg, err := repo.GetSyncConfig(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Len(t, promotedCfg, len(instance.AllConfigTypes))
+	for _, e := range promotedCfg {
+		assert.True(t, e.Enabled)
+	}
 }
 
 func TestRepository_Promote_NotFound(t *testing.T) {
@@ -201,7 +243,7 @@ func TestRepository_SetAndGetSyncConfig(t *testing.T) {
 	repo := openRepo(t)
 	ctx := context.Background()
 
-	inst, err := repo.Create(ctx, "C", "http://1.1.1.1:3000", "u", "p", false, false)
+	inst, err := repo.Create(ctx, "Master", "http://1.1.1.1:3000", "u", "p", true, false)
 	require.NoError(t, err)
 
 	entries := []instance.SyncConfigEntry{

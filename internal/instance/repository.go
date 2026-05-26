@@ -61,7 +61,7 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 		return nil, err
 	}
 
-	if !isMaster {
+	if isMaster {
 		for _, ct := range AllConfigTypes {
 			if _, err = tx.ExecContext(ctx,
 				`INSERT INTO sync_config(instance_id, config_type, enabled) VALUES(?,?,1)`,
@@ -176,6 +176,8 @@ func (r *Repository) GetDecryptedPassword(ctx context.Context, id string) (strin
 }
 
 // Promote atomically demotes the current master and promotes the given instance.
+// The current master's sync_config is transferred to the newly promoted instance;
+// the demoted master's sync_config is deleted.
 func (r *Repository) Promote(ctx context.Context, id string) error {
 	now := time.Now().UTC().Format(timeFmt)
 
@@ -193,14 +195,69 @@ func (r *Repository) Promote(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 
+	// Read the current master's sync_config before demoting.
+	rows, err := tx.QueryContext(ctx,
+		`SELECT sc.config_type, sc.enabled
+		 FROM sync_config sc
+		 JOIN instances i ON sc.instance_id = i.id
+		 WHERE i.is_master = 1`)
+	if err != nil {
+		return err
+	}
+	type configRow struct {
+		configType string
+		enabled    int
+	}
+	var masterConfig []configRow
+	for rows.Next() {
+		var cr configRow
+		if err = rows.Scan(&cr.configType, &cr.enabled); err != nil {
+			rows.Close()
+			return err
+		}
+		masterConfig = append(masterConfig, cr)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	// If the master had no sync_config, seed defaults (all enabled).
+	if len(masterConfig) == 0 {
+		for _, ct := range AllConfigTypes {
+			masterConfig = append(masterConfig, configRow{configType: ct, enabled: 1})
+		}
+	}
+
+	// Demote old master: clear its sync_config.
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM sync_config WHERE instance_id IN (SELECT id FROM instances WHERE is_master=1)`); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx,
 		`UPDATE instances SET is_master=0, updated_at=? WHERE is_master=1`, now); err != nil {
 		return err
 	}
+
+	// Promote the target instance.
 	if _, err = tx.ExecContext(ctx,
 		`UPDATE instances SET is_master=1, updated_at=? WHERE id=?`, now, id); err != nil {
 		return err
 	}
+
+	// Remove any stale sync_config on the newly promoted instance, then insert master's config.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM sync_config WHERE instance_id=?`, id); err != nil {
+		return err
+	}
+	for _, cr := range masterConfig {
+		if _, err = tx.ExecContext(ctx,
+			`INSERT INTO sync_config(instance_id, config_type, enabled) VALUES(?,?,?)`,
+			id, cr.configType, cr.enabled,
+		); err != nil {
+			return err
+		}
+	}
+
 	return tx.Commit()
 }
 

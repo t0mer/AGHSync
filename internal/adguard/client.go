@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Client talks to a single AdGuardHome instance over HTTP.
@@ -52,12 +53,8 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 		return c.get(ctx, "/control/parental/status")
 	case "safesearch":
 		return c.get(ctx, "/control/safesearch/status")
-	case "stats":
-		return c.get(ctx, "/control/stats_info")
 	case "tls":
 		return c.get(ctx, "/control/tls/status")
-	case "log":
-		return c.get(ctx, "/control/querylog_info")
 	default:
 		return nil, fmt.Errorf("unknown config type: %s", configType)
 	}
@@ -84,14 +81,38 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 		return c.applyToggle(ctx, data, "/control/parental/enable", "/control/parental/disable")
 	case "safesearch":
 		return c.put(ctx, "/control/safesearch/settings", data)
-	case "stats":
-		return c.post(ctx, "/control/stats_config", data)
 	case "tls":
 		return c.post(ctx, "/control/tls/configure", data)
-	case "log":
-		return c.post(ctx, "/control/querylog_config", data)
 	default:
 		return fmt.Errorf("unknown config type: %s", configType)
+	}
+}
+
+// TestConnection verifies connectivity and credentials using the same Basic Auth
+// mechanism that all other API calls use.
+func (c *Client) TestConnection(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/control/status", nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(c.user, c.pass)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not connect to %s: %w", c.base, err)
+	}
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }() //nolint:errcheck
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusUnauthorized:
+		return fmt.Errorf("invalid username or password")
+	case http.StatusTooManyRequests:
+		return fmt.Errorf("too many login attempts — try again later")
+	default:
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
 	}
 }
 
