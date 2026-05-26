@@ -211,7 +211,7 @@ func TestPromoteInstance_Valid(t *testing.T) {
 
 func TestGetSyncConfig_Valid(t *testing.T) {
 	repo := openInstanceRepo(t)
-	inst, _ := repo.Create(context.Background(), "C", "http://1.1.1.1:3000", "u", "p", false, false)
+	inst, _ := repo.Create(context.Background(), "C", "http://1.1.1.1:3000", "u", "p", true, false)
 
 	req := chiCtxWithID(
 		httptest.NewRequest(http.MethodGet, "/", nil),
@@ -228,7 +228,7 @@ func TestGetSyncConfig_Valid(t *testing.T) {
 
 func TestUpdateSyncConfig_Valid(t *testing.T) {
 	repo := openInstanceRepo(t)
-	inst, _ := repo.Create(context.Background(), "C", "http://1.1.1.1:3000", "u", "p", false, false)
+	inst, _ := repo.Create(context.Background(), "C", "http://1.1.1.1:3000", "u", "p", true, false)
 
 	body := `{"config":[{"config_type":"filtering","enabled":false},{"config_type":"dns","enabled":true}]}`
 	req := chiCtxWithID(

@@ -190,18 +190,20 @@ export function Instances() {
             <React.Fragment key={inst.id}>
               <TableRow>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => toggleExpand(inst.id)}
-                    aria-label="Toggle sync config"
-                  >
-                    {expandedId === inst.id ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {inst.is_master && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleExpand(inst.id)}
+                      aria-label="Toggle sync config"
+                    >
+                      {expandedId === inst.id ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell className="font-medium">{inst.name}</TableCell>
                 <TableCell className="text-muted-foreground">{inst.address}</TableCell>
@@ -248,7 +250,7 @@ export function Instances() {
                 </TableCell>
               </TableRow>
 
-              {expandedId === inst.id && (
+              {inst.is_master && expandedId === inst.id && (
                 <TableRow key={`${inst.id}-config`}>
                   <TableCell colSpan={7} className="bg-muted/30 px-8 py-4">
                     <p className="text-sm font-medium mb-3">Sync Config</p>
