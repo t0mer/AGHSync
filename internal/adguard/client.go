@@ -95,6 +95,32 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 	}
 }
 
+// TestConnection verifies connectivity and credentials using the same Basic Auth
+// mechanism that all other API calls use.
+func (c *Client) TestConnection(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/control/status", nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(c.user, c.pass)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not connect to %s: %w", c.base, err)
+	}
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }() //nolint:errcheck
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusUnauthorized:
+		return fmt.Errorf("invalid username or password")
+	case http.StatusTooManyRequests:
+		return fmt.Errorf("too many login attempts — try again later")
+	default:
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
+	}
+}
+
 func (c *Client) applyFiltering(ctx context.Context, data json.RawMessage) error {
 	var status struct {
 		Enabled   bool     `json:"enabled"`
