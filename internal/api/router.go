@@ -56,6 +56,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/instances", handlers.ListInstances(deps.Instances))
 		r.Post("/instances", handlers.CreateInstance(deps.Instances))
 		r.Post("/instances/test-connection", handlers.TestConnectionHandler)
+		r.Get("/instances/statuses", handlers.GetInstancesStatuses(deps.Instances))
 		r.Get("/instances/{id}", handlers.GetInstance(deps.Instances))
 		r.Put("/instances/{id}", handlers.UpdateInstance(deps.Instances))
 		r.Delete("/instances/{id}", handlers.DeleteInstance(deps.Instances))

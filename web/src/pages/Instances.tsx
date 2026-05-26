@@ -16,7 +16,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { useInstances } from '@/hooks/useInstances'
+import { useInstanceStatuses, useInstances } from '@/hooks/useInstances'
 import { ApiError, testConnection, type Instance, type SyncConfigEntry } from '@/lib/api'
 
 const ALL_CONFIG_TYPES = [
@@ -58,6 +58,7 @@ export function Instances() {
     getSyncConfig,
     updateSyncConfig,
   } = useInstances(credentials)
+  const { statusMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Instance | null>(null)
@@ -177,6 +178,7 @@ export function Instances() {
         <TableHeader>
           <TableRow>
             <TableHead />
+            <TableHead>Status</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Address</TableHead>
             <TableHead>Role</TableHead>
@@ -203,6 +205,15 @@ export function Instances() {
                         <ChevronRight className="h-4 w-4" />
                       )}
                     </Button>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {!statusLoaded ? (
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-muted-foreground/30 animate-pulse" title="Checking…" />
+                  ) : statusMap[inst.id] === true ? (
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" title="Online" />
+                  ) : (
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" title="Offline" />
                   )}
                 </TableCell>
                 <TableCell className="font-medium">{inst.name}</TableCell>
@@ -252,7 +263,7 @@ export function Instances() {
 
               {inst.is_master && expandedId === inst.id && (
                 <TableRow key={`${inst.id}-config`}>
-                  <TableCell colSpan={7} className="bg-muted/30 px-8 py-4">
+                  <TableCell colSpan={8} className="bg-muted/30 px-8 py-4">
                     <p className="text-sm font-medium mb-3">Sync Config</p>
                     <div className="grid grid-cols-3 gap-2">
                       {(

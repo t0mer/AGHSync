@@ -127,6 +127,15 @@ export interface TestConnectionParams {
   tls_skip_verify: boolean
 }
 
+export interface InstanceStatus {
+  id: string
+  online: boolean
+}
+
+export async function fetchInstanceStatuses(credentials: AnyCredentials | null): Promise<InstanceStatus[]> {
+  return apiFetch<InstanceStatus[]>('/api/v1/instances/statuses', { credentials })
+}
+
 export async function testConnection(
   params: TestConnectionParams,
   credentials: AnyCredentials | null

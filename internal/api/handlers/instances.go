@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/t0mer/aghsync/internal/adguard"
@@ -221,6 +224,44 @@ func validateInstanceAddress(address string) error {
 		return fmt.Errorf("address must include a host")
 	}
 	return nil
+}
+
+type instanceStatusResponse struct {
+	ID     string `json:"id"`
+	Online bool   `json:"online"`
+}
+
+// GetInstancesStatuses concurrently checks connectivity for all instances and returns online/offline status.
+func GetInstancesStatuses(repo *instance.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		instances, err := repo.List(ctx)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to list instances")
+			return
+		}
+
+		results := make([]instanceStatusResponse, len(instances))
+		var wg sync.WaitGroup
+		for i, inst := range instances {
+			wg.Add(1)
+			go func(i int, inst *instance.Instance) {
+				defer wg.Done()
+				pw, err := repo.GetDecryptedPassword(ctx, inst.ID)
+				if err != nil {
+					results[i] = instanceStatusResponse{ID: inst.ID, Online: false}
+					return
+				}
+				c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
+				checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				results[i] = instanceStatusResponse{ID: inst.ID, Online: c.TestConnection(checkCtx) == nil}
+			}(i, inst)
+		}
+		wg.Wait()
+
+		WriteJSON(w, http.StatusOK, results)
+	}
 }
 
 // TestConnectionHandler tests connectivity to an AdGuardHome instance without saving it.
