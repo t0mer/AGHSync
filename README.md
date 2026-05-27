@@ -92,7 +92,7 @@ docker run -d \
   --name aghsync \
   -p 8080:8080 \
   -v aghsync-data:/app/data \
-  t0mer/aghsync
+  techblog/aghsync:latest
 ```
 
 Open [http://localhost:8080](http://localhost:8080)
@@ -102,7 +102,7 @@ Open [http://localhost:8080](http://localhost:8080)
 ```yaml
 services:
   aghsync:
-    image: t0mer/aghsync
+    image: techblog/aghsync:latest
     ports:
       - "8080:8080"
     volumes:
