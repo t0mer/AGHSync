@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,7 @@ import {
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/hooks/useSettings'
+import { exportBackup, importBackup } from '@/lib/api'
 
 export function Settings() {
   const { credentials } = useAuth()
@@ -27,6 +28,14 @@ export function Settings() {
   const [newToken, setNewToken] = useState('')
   const [copied, setCopied] = useState(false)
   const [confirmDeleteToken, setConfirmDeleteToken] = useState(false)
+
+  const [exportError, setExportError] = useState('')
+  const [exportBusy, setExportBusy] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [importBusy, setImportBusy] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [pendingBackup, setPendingBackup] = useState<unknown>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleEnableAuth() {
     await updateUIAuth.mutateAsync({
@@ -53,6 +62,48 @@ export function Settings() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function handleExport() {
+    setExportError('')
+    setExportBusy(true)
+    try {
+      await exportBackup(credentials)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setExportBusy(false)
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setImportError('')
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      setPendingBackup(parsed)
+      setConfirmRestore(true)
+    } catch {
+      setImportError('Could not parse backup file. Make sure it is a valid AGHSync backup JSON.')
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function handleRestore() {
+    if (!pendingBackup) return
+    setImportError('')
+    setImportBusy(true)
+    try {
+      await importBackup(pendingBackup, credentials)
+      setPendingBackup(null)
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'Restore failed')
+    } finally {
+      setImportBusy(false)
+    }
   }
 
   if (isLoading) return <p className="text-muted-foreground">Loading…</p>
@@ -196,6 +247,64 @@ export function Settings() {
           setConfirmDeleteToken(false)
         }}
         loading={deleteToken.isPending}
+      />
+
+      {/* Backup / Restore */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Backup &amp; Restore</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Export all settings — authentication, API token, instances, and sync configuration —
+            to a JSON file. Restore replaces the current configuration entirely.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Export</p>
+            <Button onClick={handleExport} disabled={exportBusy} variant="outline">
+              {exportBusy ? 'Exporting…' : 'Download Backup'}
+            </Button>
+            {exportError && <p className="text-sm text-destructive">{exportError}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Restore</p>
+            <p className="text-xs text-muted-foreground">
+              Importing a backup will replace all current instances and settings.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              disabled={importBusy}
+            >
+              {importBusy ? 'Restoring…' : 'Import Backup File…'}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            {importError && <p className="text-sm text-destructive">{importError}</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmRestore}
+        onOpenChange={(open) => {
+          setConfirmRestore(open)
+          if (!open) setPendingBackup(null)
+        }}
+        title="Restore Backup"
+        description="This will replace all current instances and settings with the contents of the backup file. This cannot be undone. Continue?"
+        confirmLabel="Restore"
+        onConfirm={() => {
+          setConfirmRestore(false)
+          handleRestore()
+        }}
+        loading={importBusy}
       />
     </div>
   )

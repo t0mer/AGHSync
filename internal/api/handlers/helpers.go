@@ -27,3 +27,17 @@ func DecodeJSON(r *http.Request, dst any) error {
 	dec.DisallowUnknownFields()
 	return dec.Decode(dst)
 }
+
+// DecodeJSONLarge is like DecodeJSON but allows up to 10 MB (for backup restore).
+func DecodeJSONLarge(r *http.Request, dst any) error {
+	r.Body = io.NopCloser(io.LimitReader(r.Body, 10<<20))
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(dst)
+}
+
+// writeJSONRaw encodes any value as JSON directly to the response writer without
+// setting Content-Type (caller must set it before calling).
+func writeJSONRaw(w http.ResponseWriter, v any) {
+	json.NewEncoder(w).Encode(v) //nolint:errcheck
+}

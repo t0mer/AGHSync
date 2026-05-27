@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, type AnyCredentials, type Instance, type SyncConfigEntry } from '@/lib/api'
+import { apiFetch, fetchInstanceStatuses, type AnyCredentials, type Instance, type InstanceStatus, type SyncConfigEntry } from '@/lib/api'
 
 export function useInstances(credentials: AnyCredentials | null) {
   const qc = useQueryClient()
@@ -79,4 +79,19 @@ export function useInstances(credentials: AnyCredentials | null) {
     getSyncConfig,
     updateSyncConfig,
   }
+}
+
+export function useInstanceStatuses(credentials: AnyCredentials | null) {
+  const { data } = useQuery<InstanceStatus[]>({
+    queryKey: ['instance-statuses'],
+    queryFn: () => fetchInstanceStatuses(credentials),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  })
+
+  const statusMap: Record<string, boolean | undefined> = {}
+  for (const s of data ?? []) {
+    statusMap[s.id] = s.online
+  }
+  return { statusMap, isLoaded: data !== undefined }
 }

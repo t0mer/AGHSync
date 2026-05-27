@@ -24,7 +24,6 @@ type SyncConfigEntry struct {
 // can synchronise. Derived from the swagger.yml tag names.
 var AllConfigTypes = []string{
 	"blocked_services",
-	"clients",
 	"dhcp",
 	"dns",
 	"filtering",

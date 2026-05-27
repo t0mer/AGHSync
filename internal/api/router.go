@@ -56,10 +56,12 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/instances", handlers.ListInstances(deps.Instances))
 		r.Post("/instances", handlers.CreateInstance(deps.Instances))
 		r.Post("/instances/test-connection", handlers.TestConnectionHandler)
+		r.Get("/instances/statuses", handlers.GetInstancesStatuses(deps.Instances))
 		r.Get("/instances/{id}", handlers.GetInstance(deps.Instances))
 		r.Put("/instances/{id}", handlers.UpdateInstance(deps.Instances))
 		r.Delete("/instances/{id}", handlers.DeleteInstance(deps.Instances))
 		r.Put("/instances/{id}/promote", handlers.PromoteInstance(deps.Instances))
+		r.Get("/instances/{id}/stats", handlers.GetInstanceStats(deps.Instances))
 		r.Get("/instances/{id}/sync-config", handlers.GetSyncConfig(deps.Instances))
 		r.Put("/instances/{id}/sync-config", handlers.UpdateSyncConfig(deps.Instances))
 
@@ -80,6 +82,10 @@ func NewRouter(deps Deps) http.Handler {
 		// History
 		r.Get("/history", handlers.ListHistory(deps.History))
 		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
+
+		// Backup / Restore
+		r.Get("/backup/export", handlers.ExportBackup(deps.Store.DB(), deps.Config))
+		r.Post("/backup/restore", handlers.RestoreBackup(deps.Store.DB(), deps.Config))
 	})
 
 	// SPA catch-all: serve static assets; fall back to index.html for client-side routes.

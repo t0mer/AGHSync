@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,13 @@ import (
 
 // ErrNotFound is returned when an instance does not exist.
 var ErrNotFound = errors.New("instance not found")
+
+// ErrDuplicateAddress is returned when an instance with the same address already exists.
+var ErrDuplicateAddress = errors.New("an instance with this address already exists")
+
+func isUniqueAddressViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: instances.address")
+}
 
 // modernc/sqlite returns datetime strings in RFC3339 format.
 const timeFmt = time.RFC3339
@@ -58,6 +66,9 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 		 VALUES(?,?,?,?,?,?,?,?,?)`,
 		id, name, address, username, enc, btoi(isMaster), btoi(tlsSkipVerify), nowFmt, nowFmt,
 	); err != nil {
+		if isUniqueAddressViolation(err) {
+			return nil, ErrDuplicateAddress
+		}
 		return nil, err
 	}
 
@@ -139,6 +150,9 @@ func (r *Repository) Update(ctx context.Context, id, name, address, username str
 			name, address, username, btoi(tlsSkipVerify), now, id)
 	}
 	if err != nil {
+		if isUniqueAddressViolation(err) {
+			return nil, ErrDuplicateAddress
+		}
 		return nil, err
 	}
 	n, _ := res.RowsAffected()

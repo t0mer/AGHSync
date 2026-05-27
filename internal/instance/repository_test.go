@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -82,6 +83,30 @@ func TestRepository_Create_NonMasterHasNoSyncConfig(t *testing.T) {
 	assert.Empty(t, cfg) // slaves have no sync_config rows
 }
 
+func TestRepository_Create_DuplicateAddress(t *testing.T) {
+	repo := openRepo(t)
+	ctx := context.Background()
+
+	_, err := repo.Create(ctx, "First", "http://10.0.0.1:3000", "a", "p", false, false)
+	require.NoError(t, err)
+
+	_, err = repo.Create(ctx, "Second", "http://10.0.0.1:3000", "b", "q", false, false)
+	assert.ErrorIs(t, err, instance.ErrDuplicateAddress)
+}
+
+func TestRepository_Update_DuplicateAddress(t *testing.T) {
+	repo := openRepo(t)
+	ctx := context.Background()
+
+	_, err := repo.Create(ctx, "A", "http://10.0.0.1:3000", "a", "p", false, false)
+	require.NoError(t, err)
+	b, err := repo.Create(ctx, "B", "http://10.0.0.2:3000", "b", "q", false, false)
+	require.NoError(t, err)
+
+	_, err = repo.Update(ctx, b.ID, "B", "http://10.0.0.1:3000", "b", nil, false)
+	assert.ErrorIs(t, err, instance.ErrDuplicateAddress)
+}
+
 // --- Get / List ---
 
 func TestRepository_Get_NotFound(t *testing.T) {
@@ -101,8 +126,8 @@ func TestRepository_List_OrderedByCreatedAt(t *testing.T) {
 	repo := openRepo(t)
 	ctx := context.Background()
 
-	for _, name := range []string{"A", "B", "C"} {
-		_, err := repo.Create(ctx, name, "http://1.2.3.4:3000", "u", "p", false, false)
+	for i, name := range []string{"A", "B", "C"} {
+		_, err := repo.Create(ctx, name, fmt.Sprintf("http://1.2.3.%d:3000", i+1), "u", "p", false, false)
 		require.NoError(t, err)
 	}
 

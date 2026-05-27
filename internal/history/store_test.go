@@ -20,13 +20,14 @@ func newTestStore(t *testing.T) *history.Store {
 }
 
 // insertTestInstance inserts a minimal instance row so FK constraints on sync_results are satisfied.
+// The address is derived from the id to satisfy the UNIQUE constraint on instances.address.
 func insertTestInstance(t *testing.T, s *history.Store, id string) {
 	t.Helper()
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.DB().Exec(
 		`INSERT INTO instances(id, name, address, username, password_enc, is_master, tls_skip_verify, created_at, updated_at)
 		 VALUES(?,?,?,?,?,0,0,?,?)`,
-		id, id, "http://localhost", "", "", now, now,
+		id, id, "http://"+id+".local", "", "", now, now,
 	)
 	require.NoError(t, err)
 }

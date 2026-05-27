@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/t0mer/aghsync/internal/adguard"
@@ -64,6 +67,10 @@ func CreateInstance(repo *instance.Repository) http.HandlerFunc {
 			return
 		}
 		inst, err := repo.Create(r.Context(), req.Name, req.Address, req.Username, req.Password, req.IsMaster, req.TLSSkipVerify)
+		if errors.Is(err, instance.ErrDuplicateAddress) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, "failed to create instance")
 			return
@@ -109,6 +116,10 @@ func UpdateInstance(repo *instance.Repository) http.HandlerFunc {
 		inst, err := repo.Update(r.Context(), id, req.Name, req.Address, req.Username, req.Password, req.TLSSkipVerify)
 		if errors.Is(err, instance.ErrNotFound) {
 			WriteError(w, http.StatusNotFound, "instance not found")
+			return
+		}
+		if errors.Is(err, instance.ErrDuplicateAddress) {
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if err != nil {
@@ -202,6 +213,34 @@ func UpdateSyncConfig(repo *instance.Repository) http.HandlerFunc {
 	}
 }
 
+// GetInstanceStats proxies the AGH stats endpoint for a single instance.
+func GetInstanceStats(repo *instance.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		inst, err := repo.Get(r.Context(), id)
+		if errors.Is(err, instance.ErrNotFound) {
+			WriteError(w, http.StatusNotFound, "instance not found")
+			return
+		}
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to get instance")
+			return
+		}
+		pw, err := repo.GetDecryptedPassword(r.Context(), id)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to get credentials")
+			return
+		}
+		c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
+		stats, err := c.Stats(r.Context())
+		if err != nil {
+			WriteError(w, http.StatusBadGateway, "failed to fetch stats: "+err.Error())
+			return
+		}
+		WriteJSON(w, http.StatusOK, stats)
+	}
+}
+
 type testConnectionRequest struct {
 	Address       string `json:"address"`
 	Username      string `json:"username"`
@@ -221,6 +260,44 @@ func validateInstanceAddress(address string) error {
 		return fmt.Errorf("address must include a host")
 	}
 	return nil
+}
+
+type instanceStatusResponse struct {
+	ID     string `json:"id"`
+	Online bool   `json:"online"`
+}
+
+// GetInstancesStatuses concurrently checks connectivity for all instances and returns online/offline status.
+func GetInstancesStatuses(repo *instance.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		instances, err := repo.List(ctx)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to list instances")
+			return
+		}
+
+		results := make([]instanceStatusResponse, len(instances))
+		var wg sync.WaitGroup
+		for i, inst := range instances {
+			wg.Add(1)
+			go func(i int, inst *instance.Instance) {
+				defer wg.Done()
+				pw, err := repo.GetDecryptedPassword(ctx, inst.ID)
+				if err != nil {
+					results[i] = instanceStatusResponse{ID: inst.ID, Online: false}
+					return
+				}
+				c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
+				checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				results[i] = instanceStatusResponse{ID: inst.ID, Online: c.TestConnection(checkCtx) == nil}
+			}(i, inst)
+		}
+		wg.Wait()
+
+		WriteJSON(w, http.StatusOK, results)
+	}
 }
 
 // TestConnectionHandler tests connectivity to an AdGuardHome instance without saving it.

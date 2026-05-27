@@ -61,6 +61,42 @@ func TestClient_Apply_DNS(t *testing.T) {
 	_ = received
 }
 
+func TestClient_Apply_DNS_DisablesPrivatePtrWhenNoUpstreams(t *testing.T) {
+	var body map[string]any
+	srv := newTestServer(t, map[string]http.HandlerFunc{
+		"/control/dns_config": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&body)
+			w.WriteHeader(http.StatusOK)
+		},
+	})
+
+	c := adguard.NewClient(srv.URL, "u", "p", false)
+	// Snapshot has use_private_ptr_resolvers=true but empty local_ptr_upstreams.
+	err := c.Apply(context.Background(), "dns", json.RawMessage(
+		`{"upstream_dns":["1.1.1.1"],"use_private_ptr_resolvers":true,"local_ptr_upstreams":[]}`,
+	))
+	require.NoError(t, err)
+	// Flag must be cleared to avoid AGH validation error.
+	assert.Equal(t, false, body["use_private_ptr_resolvers"])
+}
+
+func TestClient_Apply_DNS_KeepsPrivatePtrWhenUpstreamsPresent(t *testing.T) {
+	var body map[string]any
+	srv := newTestServer(t, map[string]http.HandlerFunc{
+		"/control/dns_config": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&body)
+			w.WriteHeader(http.StatusOK)
+		},
+	})
+
+	c := adguard.NewClient(srv.URL, "u", "p", false)
+	err := c.Apply(context.Background(), "dns", json.RawMessage(
+		`{"upstream_dns":["1.1.1.1"],"use_private_ptr_resolvers":true,"local_ptr_upstreams":["192.168.1.1"]}`,
+	))
+	require.NoError(t, err)
+	assert.Equal(t, true, body["use_private_ptr_resolvers"])
+}
+
 func TestClient_Snapshot_Rewrite_CombinesListAndSettings(t *testing.T) {
 	srv := newTestServer(t, map[string]http.HandlerFunc{
 		"/control/rewrite/list": func(w http.ResponseWriter, r *http.Request) {
@@ -120,25 +156,6 @@ func TestClient_Apply_SafeBrowsing_Enable(t *testing.T) {
 	assert.True(t, enableCalled)
 }
 
-func TestClient_Apply_Clients_ReconcilesAdd(t *testing.T) {
-	var addCalled bool
-	srv := newTestServer(t, map[string]http.HandlerFunc{
-		"/control/clients": func(w http.ResponseWriter, r *http.Request) {
-			// child has no clients
-			w.Write([]byte(`{"clients":[],"auto_clients":[],"supported_tags":[]}`))
-		},
-		"/control/clients/add": func(w http.ResponseWriter, r *http.Request) {
-			addCalled = true
-			w.WriteHeader(http.StatusOK)
-		},
-	})
-
-	masterData := json.RawMessage(`{"clients":[{"name":"laptop","ids":["192.168.1.10"]}],"auto_clients":[],"supported_tags":[]}`)
-	c := adguard.NewClient(srv.URL, "admin", "pass", false)
-	err := c.Apply(context.Background(), "clients", masterData)
-	require.NoError(t, err)
-	assert.True(t, addCalled, "should have called /clients/add for missing client")
-}
 
 func TestClient_UnknownConfigType(t *testing.T) {
 	c := adguard.NewClient("http://localhost", "u", "p", false)

@@ -43,8 +43,6 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 		return c.get(ctx, "/control/filtering/status")
 	case "blocked_services":
 		return c.get(ctx, "/control/blocked_services/get")
-	case "clients":
-		return c.get(ctx, "/control/clients")
 	case "rewrite":
 		return c.rewriteSnapshot(ctx)
 	case "safebrowsing":
@@ -64,15 +62,13 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 func (c *Client) Apply(ctx context.Context, configType string, data json.RawMessage) error {
 	switch configType {
 	case "dns":
-		return c.post(ctx, "/control/dns_config", data)
+		return c.applyDNS(ctx, data)
 	case "dhcp":
 		return c.post(ctx, "/control/dhcp/set_config", data)
 	case "filtering":
 		return c.applyFiltering(ctx, data)
 	case "blocked_services":
 		return c.put(ctx, "/control/blocked_services/update", data)
-	case "clients":
-		return c.applyClients(ctx, data)
 	case "rewrite":
 		return c.applyRewrite(ctx, data)
 	case "safebrowsing":
@@ -86,6 +82,56 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 	default:
 		return fmt.Errorf("unknown config type: %s", configType)
 	}
+}
+
+// InstanceStats holds the subset of AGH statistics used by the dashboard.
+type InstanceStats struct {
+	Version                 string  `json:"version"`
+	NumDNSQueries           int     `json:"num_dns_queries"`
+	NumBlockedFiltering     int     `json:"num_blocked_filtering"`
+	NumReplacedSafebrowsing int     `json:"num_replaced_safebrowsing"`
+	AvgProcessingTime       float64 `json:"avg_processing_time"`
+}
+
+// Stats fetches DNS statistics and the running version from the AGH instance
+// concurrently, returning them as a single response.
+func (c *Client) Stats(ctx context.Context) (*InstanceStats, error) {
+	type result struct {
+		raw json.RawMessage
+		err error
+	}
+	statsCh := make(chan result, 1)
+	statusCh := make(chan result, 1)
+
+	go func() {
+		raw, err := c.get(ctx, "/control/stats")
+		statsCh <- result{raw, err}
+	}()
+	go func() {
+		raw, err := c.get(ctx, "/control/status")
+		statusCh <- result{raw, err}
+	}()
+
+	sr := <-statsCh
+	if sr.err != nil {
+		return nil, sr.err
+	}
+	var s InstanceStats
+	if err := json.Unmarshal(sr.raw, &s); err != nil {
+		return nil, fmt.Errorf("parse stats: %w", err)
+	}
+
+	vr := <-statusCh
+	if vr.err == nil {
+		var status struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(vr.raw, &status); err == nil {
+			s.Version = status.Version
+		}
+	}
+
+	return &s, nil
 }
 
 // TestConnection verifies connectivity and credentials using the same Basic Auth
@@ -114,6 +160,29 @@ func (c *Client) TestConnection(ctx context.Context) error {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
 	}
+}
+
+func (c *Client) applyDNS(ctx context.Context, data json.RawMessage) error {
+	// AGH rejects POST /dns_config when use_private_ptr_resolvers is true but
+	// local_ptr_upstreams is empty ("private upstream servers: no upstream specified").
+	// When the master has the flag enabled without configured upstreams (or with
+	// upstreams that are irrelevant to the child), disable the flag on the child
+	// so the rest of the DNS config still applies cleanly.
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("parse dns snapshot: %w", err)
+	}
+	if usePrivate, _ := cfg["use_private_ptr_resolvers"].(bool); usePrivate {
+		upstreams, _ := cfg["local_ptr_upstreams"].([]any)
+		if len(upstreams) == 0 {
+			cfg["use_private_ptr_resolvers"] = false
+		}
+	}
+	cleaned, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal dns config: %w", err)
+	}
+	return c.post(ctx, "/control/dns_config", cleaned)
 }
 
 func (c *Client) applyFiltering(ctx context.Context, data json.RawMessage) error {
@@ -153,65 +222,6 @@ func (c *Client) applyToggle(ctx context.Context, data json.RawMessage, enableUR
 	return c.post(ctx, disableURL, nil)
 }
 
-func (c *Client) applyClients(ctx context.Context, masterData json.RawMessage) error {
-	var masterResp struct {
-		Clients []json.RawMessage `json:"clients"`
-	}
-	if err := json.Unmarshal(masterData, &masterResp); err != nil {
-		return fmt.Errorf("parse master clients: %w", err)
-	}
-
-	childRaw, err := c.get(ctx, "/control/clients")
-	if err != nil {
-		return fmt.Errorf("get child clients: %w", err)
-	}
-	var childResp struct {
-		Clients []json.RawMessage `json:"clients"`
-	}
-	if err := json.Unmarshal(childRaw, &childResp); err != nil {
-		return fmt.Errorf("parse child clients: %w", err)
-	}
-
-	type nameOnly struct{ Name string `json:"name"` }
-
-	masterByName := make(map[string]json.RawMessage)
-	for _, mc := range masterResp.Clients {
-		var obj nameOnly
-		if err := json.Unmarshal(mc, &obj); err == nil && obj.Name != "" {
-			masterByName[obj.Name] = mc
-		}
-	}
-	childByName := make(map[string]json.RawMessage)
-	for _, cc := range childResp.Clients {
-		var obj nameOnly
-		if err := json.Unmarshal(cc, &obj); err == nil && obj.Name != "" {
-			childByName[obj.Name] = cc
-		}
-	}
-
-	for name, mc := range masterByName {
-		if cc, exists := childByName[name]; !exists {
-			body, _ := json.Marshal(map[string]json.RawMessage{"data": mc})
-			if err := c.post(ctx, "/control/clients/add", body); err != nil {
-				return fmt.Errorf("add client %q: %w", name, err)
-			}
-		} else if string(mc) != string(cc) {
-			body, _ := json.Marshal(map[string]any{"name": name, "data": json.RawMessage(mc)})
-			if err := c.post(ctx, "/control/clients/update", body); err != nil {
-				return fmt.Errorf("update client %q: %w", name, err)
-			}
-		}
-	}
-	for name := range childByName {
-		if _, exists := masterByName[name]; !exists {
-			body, _ := json.Marshal(map[string]string{"name": name})
-			if err := c.post(ctx, "/control/clients/delete", body); err != nil {
-				return fmt.Errorf("delete client %q: %w", name, err)
-			}
-		}
-	}
-	return nil
-}
 
 func (c *Client) rewriteSnapshot(ctx context.Context) (json.RawMessage, error) {
 	list, err := c.get(ctx, "/control/rewrite/list")

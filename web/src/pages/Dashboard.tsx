@@ -1,11 +1,125 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { Activity, Ban, Globe, Shield, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuth } from '@/contexts/AuthContext'
-import { apiFetch, type Instance } from '@/lib/api'
+import { apiFetch, fetchInstanceStats, type Instance, type InstanceStats } from '@/lib/api'
+import { useInstanceStatuses } from '@/hooks/useInstances'
 import { useSyncStatus } from '@/hooks/useSyncStatus'
+
+function StatRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b last:border-0 border-border/50">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      <span className="text-sm font-medium tabular-nums">{value}</span>
+    </div>
+  )
+}
+
+function InstanceStatsCard({ inst, credentials }: { inst: Instance; credentials: Parameters<typeof fetchInstanceStats>[1] }) {
+  const { statusMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
+
+  const { data: stats, isLoading, isError } = useQuery<InstanceStats>({
+    queryKey: ['instance-stats', inst.id],
+    queryFn: () => fetchInstanceStats(inst.id, credentials),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+    retry: false,
+  })
+
+  const online = statusMap[inst.id]
+
+  function fmtNum(n: number): string {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+    return String(n)
+  }
+
+  function fmtMs(s: number): string {
+    const ms = s * 1000
+    if (ms < 1) return (ms * 1000).toFixed(0) + ' µs'
+    return ms.toFixed(1) + ' ms'
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="text-base truncate">{inst.name}</CardTitle>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{inst.address}</p>
+            {stats?.version && (
+              <span className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <Tag className="h-3 w-3 shrink-0" />
+                {stats.version}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                !statusLoaded
+                  ? 'bg-muted-foreground/30 animate-pulse'
+                  : online
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`}
+              title={!statusLoaded ? 'Checking…' : online ? 'Online' : 'Offline'}
+            />
+            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+              inst.is_master
+                ? 'bg-primary/10 text-primary'
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {inst.is_master ? 'Master' : 'Slave'}
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading && (
+          <div className="space-y-2 animate-pulse">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-6 rounded bg-muted" />
+            ))}
+          </div>
+        )}
+        {isError && (
+          <p className="text-xs text-muted-foreground text-center py-3">Stats unavailable</p>
+        )}
+        {stats && (
+          <div className="divide-y divide-border/50">
+            <StatRow
+              icon={<Globe className="h-3 w-3" />}
+              label="Total DNS queries"
+              value={fmtNum(stats.num_dns_queries)}
+            />
+            <StatRow
+              icon={<Ban className="h-3 w-3" />}
+              label="Blocked by filters"
+              value={fmtNum(stats.num_blocked_filtering)}
+            />
+            <StatRow
+              icon={<Shield className="h-3 w-3" />}
+              label="Blocked malware/phishing"
+              value={fmtNum(stats.num_replaced_safebrowsing)}
+            />
+            <StatRow
+              icon={<Activity className="h-3 w-3" />}
+              label="Avg processing time"
+              value={fmtMs(stats.avg_processing_time)}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 export function Dashboard() {
   const { credentials } = useAuth()
@@ -99,6 +213,17 @@ export function Dashboard() {
       </Button>
       {runSync.isError && runSync.error.message === 'sync already in progress' && (
         <p className="text-sm text-destructive">Sync already in progress.</p>
+      )}
+
+      {instances && instances.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-medium">Instances</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {instances.map((inst) => (
+              <InstanceStatsCard key={inst.id} inst={inst} credentials={credentials} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

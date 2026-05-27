@@ -127,6 +127,27 @@ export interface TestConnectionParams {
   tls_skip_verify: boolean
 }
 
+export interface InstanceStats {
+  version: string
+  num_dns_queries: number
+  num_blocked_filtering: number
+  num_replaced_safebrowsing: number
+  avg_processing_time: number
+}
+
+export async function fetchInstanceStats(id: string, credentials: AnyCredentials | null): Promise<InstanceStats> {
+  return apiFetch<InstanceStats>(`/api/v1/instances/${id}/stats`, { credentials })
+}
+
+export interface InstanceStatus {
+  id: string
+  online: boolean
+}
+
+export async function fetchInstanceStatuses(credentials: AnyCredentials | null): Promise<InstanceStatus[]> {
+  return apiFetch<InstanceStatus[]>('/api/v1/instances/statuses', { credentials })
+}
+
 export async function testConnection(
   params: TestConnectionParams,
   credentials: AnyCredentials | null
@@ -135,5 +156,34 @@ export async function testConnection(
     credentials,
     method: 'POST',
     body: JSON.stringify(params),
+  })
+}
+
+export async function exportBackup(credentials: AnyCredentials | null): Promise<void> {
+  const headers: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' }
+  if (credentials) {
+    headers['Authorization'] = 'Basic ' + encodeCredentials(credentials)
+  }
+  const res = await fetch('/api/v1/backup/export', { headers })
+  if (!res.ok) throw new ApiError(res.status, res.statusText)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cd = res.headers.get('Content-Disposition') ?? ''
+  const match = cd.match(/filename="([^"]+)"/)
+  a.href = url
+  a.download = match ? match[1] : 'aghsync-backup.json'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function importBackup(
+  data: unknown,
+  credentials: AnyCredentials | null
+): Promise<void> {
+  await apiFetch<void>('/api/v1/backup/restore', {
+    credentials,
+    method: 'POST',
+    body: JSON.stringify(data),
   })
 }
