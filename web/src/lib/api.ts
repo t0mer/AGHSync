@@ -198,6 +198,7 @@ export async function fetchInstanceStats(id: string, credentials: AnyCredentials
 export interface InstanceStatus {
   id: string
   online: boolean
+  version?: string
 }
 
 export async function fetchInstanceStatuses(credentials: AnyCredentials | null): Promise<InstanceStatus[]> {

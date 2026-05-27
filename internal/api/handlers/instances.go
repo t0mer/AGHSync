@@ -263,8 +263,9 @@ func validateInstanceAddress(address string) error {
 }
 
 type instanceStatusResponse struct {
-	ID     string `json:"id"`
-	Online bool   `json:"online"`
+	ID      string `json:"id"`
+	Online  bool   `json:"online"`
+	Version string `json:"version,omitempty"`
 }
 
 // GetInstancesStatuses concurrently checks connectivity for all instances and returns online/offline status.
@@ -291,7 +292,8 @@ func GetInstancesStatuses(repo *instance.Repository) http.HandlerFunc {
 				c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
 				checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
-				results[i] = instanceStatusResponse{ID: inst.ID, Online: c.TestConnection(checkCtx) == nil}
+				version, err := c.StatusCheck(checkCtx)
+				results[i] = instanceStatusResponse{ID: inst.ID, Online: err == nil, Version: version}
 			}(i, inst)
 		}
 		wg.Wait()

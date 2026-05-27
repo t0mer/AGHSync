@@ -60,7 +60,7 @@ export function Instances() {
     getSyncConfig,
     updateSyncConfig,
   } = useInstances(credentials)
-  const { statusMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
+  const { statusMap, versionMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Instance | null>(null)
@@ -192,6 +192,7 @@ export function Instances() {
             <TableHead>Name</TableHead>
             <TableHead>Address</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Version</TableHead>
             <TableHead>Sync</TableHead>
             <TableHead>TLS Skip</TableHead>
             <TableHead>Created</TableHead>
@@ -234,6 +235,13 @@ export function Instances() {
                     <Badge variant="default">Master</Badge>
                   ) : (
                     <Badge variant="secondary">Slave</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">
+                  {!statusLoaded ? (
+                    <span className="inline-block h-2 w-12 rounded bg-muted-foreground/20 animate-pulse" />
+                  ) : (
+                    versionMap[inst.id] ?? '—'
                   )}
                 </TableCell>
                 <TableCell>
@@ -287,7 +295,7 @@ export function Instances() {
 
               {inst.is_master && expandedId === inst.id && (
                 <TableRow key={`${inst.id}-config`}>
-                  <TableCell colSpan={9} className="bg-muted/30 px-8 py-4">
+                  <TableCell colSpan={10} className="bg-muted/30 px-8 py-4">
                     <p className="text-sm font-medium mb-3">Sync Config</p>
                     <div className="grid grid-cols-3 gap-2">
                       {(

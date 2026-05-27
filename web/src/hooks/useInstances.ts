@@ -106,8 +106,10 @@ export function useInstanceStatuses(credentials: AnyCredentials | null) {
   })
 
   const statusMap: Record<string, boolean | undefined> = {}
+  const versionMap: Record<string, string | undefined> = {}
   for (const s of data ?? []) {
     statusMap[s.id] = s.online
+    versionMap[s.id] = s.version
   }
-  return { statusMap, isLoaded: data !== undefined }
+  return { statusMap, versionMap, isLoaded: data !== undefined }
 }
