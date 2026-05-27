@@ -39,14 +39,19 @@ type ShoutrrrConfig struct {
 }
 
 // GreenAPIConfig holds the provider-specific fields for a GreenAPI channel.
+// APIURL is optional and defaults to https://api.green-api.com; set it to the
+// cluster-specific URL shown in the GreenAPI console (e.g. https://7103.api.greenapi.com).
 type GreenAPIConfig struct {
 	InstanceID string `json:"instance_id"`
-	APIToken   string `json:"api_token"`
-	Phone      string `json:"phone"`
+	Token      string `json:"token"`
+	Recipient  string `json:"recipient"`
+	APIURL     string `json:"api_url,omitempty"`
 }
 
 // WhatsAppConfig holds the provider-specific fields for a go-whatsapp-web-multidevice channel.
 type WhatsAppConfig struct {
-	APIURL string `json:"api_url"`
-	Phone  string `json:"phone"`
+	BaseURL   string `json:"base_url"`
+	Recipient string `json:"recipient"`
+	Username  string `json:"username,omitempty"`
+	Password  string `json:"password,omitempty"`
 }

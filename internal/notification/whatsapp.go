@@ -1,7 +1,6 @@
 package notification
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,7 +9,8 @@ import (
 )
 
 type whatsAppSender struct {
-	cfg WhatsAppConfig
+	cfg    WhatsAppConfig
+	client *http.Client
 }
 
 func newWhatsAppSender(configJSON string) (*whatsAppSender, error) {
@@ -18,31 +18,21 @@ func newWhatsAppSender(configJSON string) (*whatsAppSender, error) {
 	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil {
 		return nil, fmt.Errorf("whatsapp: parse config: %w", err)
 	}
-	if cfg.APIURL == "" || cfg.Phone == "" {
-		return nil, fmt.Errorf("whatsapp: api_url and phone are required")
+	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.Recipient) == "" {
+		return nil, fmt.Errorf("whatsapp: base_url and recipient are required")
 	}
-	return &whatsAppSender{cfg: cfg}, nil
+	return &whatsAppSender{cfg: cfg, client: defaultHTTPClient()}, nil
 }
 
 func (s *whatsAppSender) Send(ctx context.Context, message string) error {
-	// POST {api_url}/api/send/message
-	url := strings.TrimRight(s.cfg.APIURL, "/") + "/api/send/message"
-	body, _ := json.Marshal(map[string]string{
-		"phone":   s.cfg.Phone,
-		"message": message,
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("whatsapp: build request: %w", err)
+	endpoint := strings.TrimRight(s.cfg.BaseURL, "/") + "/send/message"
+	payload, _ := json.Marshal(map[string]string{"phone": s.cfg.Recipient, "message": message})
+
+	var auth func(*http.Request)
+	if user := strings.TrimSpace(s.cfg.Username); user != "" {
+		user, pass := user, s.cfg.Password
+		auth = func(req *http.Request) { req.SetBasicAuth(user, pass) }
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("whatsapp: send request: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("whatsapp: unexpected status %d", resp.StatusCode)
-	}
-	return nil
+
+	return postJSON(ctx, s.client, endpoint, payload, auth, "whatsapp")
 }

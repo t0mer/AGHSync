@@ -16,8 +16,8 @@ import { ApiError, type NotificationChannel, type NotificationChannelType } from
 
 // Per-provider field state
 interface ShoutrrrFields { url: string }
-interface GreenAPIFields { instance_id: string; api_token: string; phone: string }
-interface WhatsAppFields { api_url: string; phone: string }
+interface GreenAPIFields { instance_id: string; token: string; recipient: string; api_url: string }
+interface WhatsAppFields { base_url: string; recipient: string; username: string; password: string }
 
 interface FormData {
   name: string
@@ -37,8 +37,8 @@ const EMPTY_FORM: FormData = {
   notify_failure: true,
   enabled: true,
   shoutrrr: { url: '' },
-  greenapi: { instance_id: '', api_token: '', phone: '' },
-  whatsapp: { api_url: '', phone: '' },
+  greenapi: { instance_id: '', token: '', recipient: '', api_url: '' },
+  whatsapp: { base_url: '', recipient: '', username: '', password: '' },
 }
 
 function buildConfig(form: FormData): string {
@@ -54,8 +54,8 @@ function parseIntoForm(base: FormData, type: NotificationChannelType, configJson
     const parsed = JSON.parse(configJson)
     switch (type) {
       case 'shoutrrr': return { ...base, type, shoutrrr: { url: parsed.url ?? '' } }
-      case 'greenapi': return { ...base, type, greenapi: { instance_id: parsed.instance_id ?? '', api_token: parsed.api_token ?? '', phone: parsed.phone ?? '' } }
-      case 'whatsapp': return { ...base, type, whatsapp: { api_url: parsed.api_url ?? '', phone: parsed.phone ?? '' } }
+      case 'greenapi': return { ...base, type, greenapi: { instance_id: parsed.instance_id ?? '', token: parsed.token ?? '', recipient: parsed.recipient ?? '', api_url: parsed.api_url ?? '' } }
+      case 'whatsapp': return { ...base, type, whatsapp: { base_url: parsed.base_url ?? '', recipient: parsed.recipient ?? '', username: parsed.username ?? '', password: parsed.password ?? '' } }
     }
   } catch {
     return { ...base, type }
@@ -101,13 +101,17 @@ function GreenAPIForm({ fields, onChange }: { fields: GreenAPIFields; onChange: 
     <div className="space-y-3">
       <Field id="ga-instance" label="Instance ID" value={fields.instance_id}
         onChange={(v) => onChange({ ...fields, instance_id: v })}
-        placeholder="1234567890" hint="Found in your GreenAPI console (console.green-api.com)." />
-      <Field id="ga-token" label="API Token" value={fields.api_token}
-        onChange={(v) => onChange({ ...fields, api_token: v })}
+        placeholder="7103251345" hint="Found in your GreenAPI console (console.green-api.com)." />
+      <Field id="ga-token" label="Token" value={fields.token}
+        onChange={(v) => onChange({ ...fields, token: v })}
         type="password" placeholder="••••••••" />
-      <Field id="ga-phone" label="Recipient Phone" value={fields.phone}
-        onChange={(v) => onChange({ ...fields, phone: v })}
-        placeholder="16316010000" hint="Phone number without + or spaces. Country code required." />
+      <Field id="ga-recipient" label="Recipient Phone" value={fields.recipient}
+        onChange={(v) => onChange({ ...fields, recipient: v })}
+        placeholder="972502961865" hint="International format without + or spaces (country code + number)." />
+      <Field id="ga-apiurl" label="API URL (optional)" value={fields.api_url}
+        onChange={(v) => onChange({ ...fields, api_url: v })}
+        placeholder="https://7103.api.greenapi.com"
+        hint="Leave blank to use the default. Set to the cluster URL shown in your GreenAPI console." />
     </div>
   )
 }
@@ -115,13 +119,17 @@ function GreenAPIForm({ fields, onChange }: { fields: GreenAPIFields; onChange: 
 function WhatsAppForm({ fields, onChange }: { fields: WhatsAppFields; onChange: (f: WhatsAppFields) => void }) {
   return (
     <div className="space-y-3">
-      <Field id="wa-url" label="API URL" value={fields.api_url}
-        onChange={(v) => onChange({ ...fields, api_url: v })}
+      <Field id="wa-url" label="Base URL" value={fields.base_url}
+        onChange={(v) => onChange({ ...fields, base_url: v })}
         placeholder="http://localhost:3000"
         hint="Base URL of your go-whatsapp-web-multidevice instance." />
-      <Field id="wa-phone" label="Recipient Phone" value={fields.phone}
-        onChange={(v) => onChange({ ...fields, phone: v })}
-        placeholder="16316010000" hint="Phone number without + or spaces. Country code required." />
+      <Field id="wa-recipient" label="Recipient Phone" value={fields.recipient}
+        onChange={(v) => onChange({ ...fields, recipient: v })}
+        placeholder="972502961865" hint="International format without + or spaces (country code + number)." />
+      <Field id="wa-user" label="Username (optional)" value={fields.username}
+        onChange={(v) => onChange({ ...fields, username: v })} placeholder="admin" />
+      <Field id="wa-pass" label="Password (optional)" value={fields.password}
+        onChange={(v) => onChange({ ...fields, password: v })} type="password" placeholder="••••••••" />
     </div>
   )
 }
