@@ -98,6 +98,16 @@ func main() {
 		}
 	}
 
+	watchdog := internalsync.NewWatchdog(dispatcher, logger)
+	// Restore saved watchdog config (if any).
+	if enabled, err := cfg.GetWatchdogEnabled(); err == nil && enabled {
+		if path, err := cfg.GetWatchdogPath(); err == nil && path != "" {
+			if err := watchdog.Start(path); err != nil {
+				logger.Warn("saved watchdog path is invalid", "path", path, "err", err)
+			}
+		}
+	}
+
 	deps := api.Deps{
 		Store:      s,
 		Config:     cfg,
@@ -106,6 +116,7 @@ func main() {
 		History:    historyStore,
 		Dispatcher: dispatcher,
 		Scheduler:  scheduler,
+		Watchdog:   watchdog,
 	}
 	router := api.NewRouter(deps)
 	addr := fmt.Sprintf(":%d", port)
@@ -137,7 +148,8 @@ func main() {
 		logger.Error("shutdown error", "err", err)
 	}
 
-	// Ordered graceful shutdown: stop scheduler → cancel dispatcher → wait for in-flight sync.
+	// Ordered graceful shutdown: stop watchdog + scheduler → cancel dispatcher → wait for in-flight sync.
+	watchdog.Stop()
 	scheduler.Stop()
 	cancel()
 	<-dispatcherDone

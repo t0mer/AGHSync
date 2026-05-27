@@ -6,15 +6,18 @@ import (
 
 	"github.com/t0mer/aghsync/internal/auth"
 	"github.com/t0mer/aghsync/internal/config"
+	internalsync "github.com/t0mer/aghsync/internal/sync"
 )
 
 type settingsResponse struct {
-	UIAuthEnabled bool   `json:"ui_auth_enabled"`
-	UIUsername    string `json:"ui_username"`
-	HasAPIToken   bool   `json:"has_api_token"`
-	SchedulerCron string `json:"scheduler_cron"`
-	Port          int    `json:"port"`
-	UITheme       string `json:"ui_theme"`
+	UIAuthEnabled   bool   `json:"ui_auth_enabled"`
+	UIUsername      string `json:"ui_username"`
+	HasAPIToken     bool   `json:"has_api_token"`
+	SchedulerCron   string `json:"scheduler_cron"`
+	Port            int    `json:"port"`
+	UITheme         string `json:"ui_theme"`
+	WatchdogEnabled bool   `json:"watchdog_enabled"`
+	WatchdogPath    string `json:"watchdog_path"`
 }
 
 type updateThemeRequest struct {
@@ -31,6 +34,11 @@ type generateTokenResponse struct {
 	Token string `json:"token"`
 }
 
+type updateWatchdogRequest struct {
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
+}
+
 // GetSettings returns current application settings (never exposes password hashes or tokens).
 func GetSettings(cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -40,13 +48,17 @@ func GetSettings(cfg *config.Config) http.HandlerFunc {
 		cron, _ := cfg.GetSchedulerCron()
 		port, _ := cfg.GetPort()
 		theme, _ := cfg.GetUITheme()
+		watchdogEnabled, _ := cfg.GetWatchdogEnabled()
+		watchdogPath, _ := cfg.GetWatchdogPath()
 		WriteJSON(w, http.StatusOK, settingsResponse{
-			UIAuthEnabled: enabled,
-			UIUsername:    username,
-			HasAPIToken:   tokenHash != "",
-			SchedulerCron: cron,
-			Port:          port,
-			UITheme:       theme,
+			UIAuthEnabled:   enabled,
+			UIUsername:      username,
+			HasAPIToken:     tokenHash != "",
+			SchedulerCron:   cron,
+			Port:            port,
+			UITheme:         theme,
+			WatchdogEnabled: watchdogEnabled,
+			WatchdogPath:    watchdogPath,
 		})
 	}
 }
@@ -132,5 +144,40 @@ func DeleteAPIToken(cfg *config.Config, _ *slog.Logger) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// UpdateWatchdog configures the filesystem watchdog and applies the change immediately.
+func UpdateWatchdog(cfg *config.Config, watchdog *internalsync.Watchdog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req updateWatchdogRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Enabled && req.Path == "" {
+			WriteError(w, http.StatusBadRequest, "path is required when enabling watchdog")
+			return
+		}
+
+		if err := cfg.SetWatchdogEnabled(req.Enabled); err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to save watchdog_enabled")
+			return
+		}
+		if err := cfg.SetWatchdogPath(req.Path); err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to save watchdog_path")
+			return
+		}
+
+		if req.Enabled {
+			if err := watchdog.Start(req.Path); err != nil {
+				WriteError(w, http.StatusBadRequest, "failed to start watchdog: "+err.Error())
+				return
+			}
+		} else {
+			watchdog.Stop()
+		}
+
+		GetSettings(cfg)(w, r)
 	}
 }
