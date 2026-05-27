@@ -5,6 +5,7 @@ import {
   Server,
   RefreshCw,
   History,
+  Bell,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/instances', label: 'Instances', icon: Server, end: false },
   { to: '/sync', label: 'Sync', icon: RefreshCw, end: false },
   { to: '/history', label: 'History', icon: History, end: false },
+  { to: '/notifications', label: 'Notifications', icon: Bell, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ]
 

@@ -10,6 +10,7 @@ import { Instances } from '@/pages/Instances'
 import { Sync } from '@/pages/Sync'
 import { History } from '@/pages/History'
 import { HistoryRun } from '@/pages/HistoryRun'
+import { Notifications } from '@/pages/Notifications'
 import { Settings } from '@/pages/Settings'
 import { useSyncStatus } from '@/hooks/useSyncStatus'
 import { apiFetch, updateTheme, type Settings as SettingsData } from '@/lib/api'
@@ -85,6 +86,7 @@ function AppRoutes() {
           <Route path="/sync" element={<Sync />} />
           <Route path="/history" element={<History />} />
           <Route path="/history/:runId" element={<HistoryRun />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

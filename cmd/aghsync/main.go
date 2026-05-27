@@ -20,6 +20,7 @@ import (
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
 	"github.com/t0mer/aghsync/internal/logging"
+	"github.com/t0mer/aghsync/internal/notification"
 	"github.com/t0mer/aghsync/internal/service"
 	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
@@ -82,7 +83,9 @@ func main() {
 
 	instanceRepo := instance.NewRepository(s.DB(), installSecret)
 	historyStore := history.New(s.DB())
-	engine := internalsync.NewEngine(instanceRepo, historyStore)
+	notifRepo := notification.NewRepository(s.DB(), installSecret)
+	notifService := notification.NewService(notifRepo, instanceRepo, logger)
+	engine := internalsync.NewEngine(instanceRepo, historyStore).WithNotifier(notifService)
 	dispatcher := internalsync.NewDispatcher(engine)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -109,14 +112,15 @@ func main() {
 	}
 
 	deps := api.Deps{
-		Store:      s,
-		Config:     cfg,
-		Logger:     logger,
-		Instances:  instanceRepo,
-		History:    historyStore,
-		Dispatcher: dispatcher,
-		Scheduler:  scheduler,
-		Watchdog:   watchdog,
+		Store:         s,
+		Config:        cfg,
+		Logger:        logger,
+		Instances:     instanceRepo,
+		History:       historyStore,
+		Dispatcher:    dispatcher,
+		Scheduler:     scheduler,
+		Watchdog:      watchdog,
+		Notifications: notifRepo,
 	}
 	router := api.NewRouter(deps)
 	addr := fmt.Sprintf(":%d", port)

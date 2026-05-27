@@ -11,6 +11,7 @@ import (
 	"github.com/t0mer/aghsync/internal/adguard"
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
+	"github.com/t0mer/aghsync/internal/notification"
 )
 
 // ErrNoMaster is returned when no master instance is configured.
@@ -21,23 +22,26 @@ var ErrPartialFailure = errors.New("partial failure: one or more child instances
 
 // Engine runs a full configuration sync from master to all child instances.
 type Engine struct {
-	instances *instance.Repository
-	history   *history.Store
-	logger    *slog.Logger
+	instances    *instance.Repository
+	history      *history.Store
+	notifier     *notification.Service
+	logger       *slog.Logger
 }
 
 // NewEngine creates a sync Engine.
 func NewEngine(instances *instance.Repository, hist *history.Store) *Engine {
-	return &Engine{
-		instances: instances,
-		history:   hist,
-		logger:    slog.Default(),
-	}
+	return &Engine{instances: instances, history: hist, logger: slog.Default()}
 }
 
 // NewEngineWithLogger creates a sync Engine with a specific logger.
 func NewEngineWithLogger(instances *instance.Repository, hist *history.Store, logger *slog.Logger) *Engine {
 	return &Engine{instances: instances, history: hist, logger: logger}
+}
+
+// WithNotifier attaches a notification service to the engine.
+func (e *Engine) WithNotifier(n *notification.Service) *Engine {
+	e.notifier = n
+	return e
 }
 
 // Run executes a full sync cycle. It records progress in the history store using runID.
@@ -47,15 +51,16 @@ func (e *Engine) Run(ctx context.Context, runID, triggeredBy string) error {
 	}
 
 	finalStatus, err := e.doSync(ctx, runID)
+	finCtx := context.Background()
 	if err != nil {
-		finCtx := context.Background()
 		_ = e.history.FinishRun(finCtx, runID, "error")
+		e.sendNotification(finCtx, runID, "error")
 		return err
 	}
-	finCtx := context.Background()
 	if finishErr := e.history.FinishRun(finCtx, runID, finalStatus); finishErr != nil {
 		return finishErr
 	}
+	e.sendNotification(finCtx, runID, finalStatus)
 	if finalStatus == "partial_failure" {
 		return ErrPartialFailure
 	}
@@ -146,6 +151,26 @@ func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {
 		return "partial_failure", nil
 	}
 	return "success", nil
+}
+
+// sendNotification fetches the finished run and its results then delegates to the
+// notification service. It is a no-op when no notifier is configured.
+func (e *Engine) sendNotification(ctx context.Context, runID, status string) {
+	if e.notifier == nil {
+		return
+	}
+	run, err := e.history.GetRun(ctx, runID)
+	if err != nil {
+		e.logger.Warn("notification: fetch run failed", "run", runID, "err", err)
+		return
+	}
+	results, err := e.history.GetResults(ctx, runID)
+	if err != nil {
+		e.logger.Warn("notification: fetch results failed", "run", runID, "err", err)
+		results = nil
+	}
+	_ = status // run.Status is already set by FinishRun
+	e.notifier.Notify(ctx, run, results)
 }
 
 // syncChild applies master snapshots to one child instance.

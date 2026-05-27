@@ -14,6 +14,7 @@ import (
 	"github.com/t0mer/aghsync/internal/config"
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
+	"github.com/t0mer/aghsync/internal/notification"
 	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
 	"github.com/t0mer/aghsync/internal/webui"
@@ -21,14 +22,15 @@ import (
 
 // Deps holds the application dependencies threaded through the router.
 type Deps struct {
-	Store      *store.Store
-	Config     *config.Config
-	Logger     *slog.Logger
-	Instances  *instance.Repository
-	History    *history.Store
-	Dispatcher *internalsync.Dispatcher
-	Scheduler  *internalsync.Scheduler
-	Watchdog   *internalsync.Watchdog
+	Store         *store.Store
+	Config        *config.Config
+	Logger        *slog.Logger
+	Instances     *instance.Repository
+	History       *history.Store
+	Dispatcher    *internalsync.Dispatcher
+	Scheduler     *internalsync.Scheduler
+	Watchdog      *internalsync.Watchdog
+	Notifications *notification.Repository
 }
 
 // NewRouter builds and returns the Chi router with all middleware and routes registered.
@@ -85,6 +87,14 @@ func NewRouter(deps Deps) http.Handler {
 		// History
 		r.Get("/history", handlers.ListHistory(deps.History))
 		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
+
+		// Notification channels
+		r.Get("/notifications", handlers.ListNotificationChannels(deps.Notifications))
+		r.Post("/notifications", handlers.CreateNotificationChannel(deps.Notifications))
+		r.Post("/notifications/test", handlers.TestNotificationChannel(deps.Notifications))
+		r.Get("/notifications/{id}", handlers.GetNotificationChannel(deps.Notifications))
+		r.Put("/notifications/{id}", handlers.UpdateNotificationChannel(deps.Notifications))
+		r.Delete("/notifications/{id}", handlers.DeleteNotificationChannel(deps.Notifications))
 
 		// Backup / Restore
 		r.Get("/backup/export", handlers.ExportBackup(deps.Store.DB(), deps.Config))
