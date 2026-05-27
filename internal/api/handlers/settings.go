@@ -18,6 +18,7 @@ type settingsResponse struct {
 	UITheme         string `json:"ui_theme"`
 	WatchdogEnabled bool   `json:"watchdog_enabled"`
 	WatchdogPath    string `json:"watchdog_path"`
+	SyncOnStartup   bool   `json:"sync_on_startup"`
 }
 
 type updateThemeRequest struct {
@@ -39,6 +40,10 @@ type updateWatchdogRequest struct {
 	Path    string `json:"path"`
 }
 
+type updateSyncOnStartupRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // GetSettings returns current application settings (never exposes password hashes or tokens).
 func GetSettings(cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +55,7 @@ func GetSettings(cfg *config.Config) http.HandlerFunc {
 		theme, _ := cfg.GetUITheme()
 		watchdogEnabled, _ := cfg.GetWatchdogEnabled()
 		watchdogPath, _ := cfg.GetWatchdogPath()
+		syncOnStartup, _ := cfg.GetSyncOnStartup()
 		WriteJSON(w, http.StatusOK, settingsResponse{
 			UIAuthEnabled:   enabled,
 			UIUsername:      username,
@@ -59,6 +65,7 @@ func GetSettings(cfg *config.Config) http.HandlerFunc {
 			UITheme:         theme,
 			WatchdogEnabled: watchdogEnabled,
 			WatchdogPath:    watchdogPath,
+			SyncOnStartup:   syncOnStartup,
 		})
 	}
 }
@@ -144,6 +151,22 @@ func DeleteAPIToken(cfg *config.Config, _ *slog.Logger) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// UpdateSyncOnStartup persists the sync-on-startup flag.
+func UpdateSyncOnStartup(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req updateSyncOnStartupRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if err := cfg.SetSyncOnStartup(req.Enabled); err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to save sync_on_startup")
+			return
+		}
+		GetSettings(cfg)(w, r)
 	}
 }
 

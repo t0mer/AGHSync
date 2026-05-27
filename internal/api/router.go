@@ -76,6 +76,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Delete("/settings/api-token", handlers.DeleteAPIToken(deps.Config, deps.Logger))
 		r.Put("/settings/theme", handlers.UpdateTheme(deps.Config))
 		r.Put("/settings/watchdog", handlers.UpdateWatchdog(deps.Config, deps.Watchdog))
+		r.Put("/settings/sync-on-startup", handlers.UpdateSyncOnStartup(deps.Config))
 
 		// Sync
 		r.Post("/sync/run", handlers.TriggerSync(deps.Dispatcher))

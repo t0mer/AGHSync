@@ -170,6 +170,24 @@ func (c *Config) GetWatchdogPath() (string, error) {
 // SetWatchdogPath persists the watchdog file path.
 func (c *Config) SetWatchdogPath(path string) error { return c.Set("watchdog_path", path) }
 
+// GetSyncOnStartup returns whether a sync should be triggered on application startup (default false).
+func (c *Config) GetSyncOnStartup() (bool, error) {
+	val, err := c.GetWithDefault("sync_on_startup", "0")
+	if err != nil {
+		return false, err
+	}
+	return val == "1", nil
+}
+
+// SetSyncOnStartup persists the sync-on-startup flag.
+func (c *Config) SetSyncOnStartup(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return c.Set("sync_on_startup", v)
+}
+
 // InstallSecret returns the per-install 32-byte random secret used for AES-GCM key derivation.
 // Generated once on first call and persisted as hex.
 func (c *Config) InstallSecret() ([]byte, error) {

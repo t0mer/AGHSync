@@ -150,6 +150,7 @@ export interface Settings {
   ui_theme: string
   watchdog_enabled: boolean
   watchdog_path: string
+  sync_on_startup: boolean
 }
 
 export async function updateWatchdog(
