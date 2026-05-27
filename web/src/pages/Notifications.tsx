@@ -14,22 +14,52 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useNotifications } from '@/hooks/useNotifications'
 import { ApiError, type NotificationChannel, type NotificationChannelType } from '@/lib/api'
 
+// Per-provider field state
+interface ShoutrrrFields { url: string }
+interface GreenAPIFields { instance_id: string; api_token: string; phone: string }
+interface WhatsAppFields { api_url: string; phone: string }
+
 interface FormData {
   name: string
   type: NotificationChannelType
-  config: string
   notify_success: boolean
   notify_failure: boolean
   enabled: boolean
+  shoutrrr: ShoutrrrFields
+  greenapi: GreenAPIFields
+  whatsapp: WhatsAppFields
 }
 
 const EMPTY_FORM: FormData = {
   name: '',
   type: 'shoutrrr',
-  config: '',
   notify_success: true,
   notify_failure: true,
   enabled: true,
+  shoutrrr: { url: '' },
+  greenapi: { instance_id: '', api_token: '', phone: '' },
+  whatsapp: { api_url: '', phone: '' },
+}
+
+function buildConfig(form: FormData): string {
+  switch (form.type) {
+    case 'shoutrrr': return JSON.stringify(form.shoutrrr)
+    case 'greenapi': return JSON.stringify(form.greenapi)
+    case 'whatsapp': return JSON.stringify(form.whatsapp)
+  }
+}
+
+function parseIntoForm(base: FormData, type: NotificationChannelType, configJson: string): FormData {
+  try {
+    const parsed = JSON.parse(configJson)
+    switch (type) {
+      case 'shoutrrr': return { ...base, type, shoutrrr: { url: parsed.url ?? '' } }
+      case 'greenapi': return { ...base, type, greenapi: { instance_id: parsed.instance_id ?? '', api_token: parsed.api_token ?? '', phone: parsed.phone ?? '' } }
+      case 'whatsapp': return { ...base, type, whatsapp: { api_url: parsed.api_url ?? '', phone: parsed.phone ?? '' } }
+    }
+  } catch {
+    return { ...base, type }
+  }
 }
 
 const TYPE_LABELS: Record<NotificationChannelType, string> = {
@@ -38,19 +68,63 @@ const TYPE_LABELS: Record<NotificationChannelType, string> = {
   whatsapp: 'WhatsApp Web',
 }
 
-const CONFIG_PLACEHOLDERS: Record<NotificationChannelType, string> = {
-  shoutrrr: '{"url":"slack://token@channel"}',
-  greenapi: '{"instance_id":"1234","api_token":"token","phone":"1631601XXXX"}',
-  whatsapp: '{"api_url":"http://localhost:3000","phone":"1631601XXXX"}',
-}
-
-const CONFIG_HINTS: Record<NotificationChannelType, string> = {
-  shoutrrr: 'Shoutrrr URL — supports Slack, Discord, Telegram, Gotify, SMTP, and more. See shoutrrr.containerize.it for the URL format.',
-  greenapi: 'GreenAPI cloud WhatsApp service. Get your Instance ID and API token from console.green-api.com.',
-  whatsapp: 'Self-hosted go-whatsapp-web-multidevice instance. Set the base URL and recipient phone number.',
-}
-
 type TestState = 'idle' | 'testing' | 'ok' | 'failed'
+
+// Shared input field row
+function Field({ id, label, value, onChange, type = 'text', placeholder, hint }: {
+  id: string; label: string; value: string
+  onChange: (v: string) => void
+  type?: string; placeholder?: string; hint?: string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+function ShoutrrrForm({ fields, onChange }: { fields: ShoutrrrFields; onChange: (f: ShoutrrrFields) => void }) {
+  return (
+    <Field
+      id="sh-url" label="Shoutrrr URL" value={fields.url}
+      onChange={(v) => onChange({ url: v })}
+      placeholder="slack://token@channel"
+      hint="Supports Slack, Discord, Telegram, Gotify, SMTP, and more. See shoutrrr.containerize.it for URL formats."
+    />
+  )
+}
+
+function GreenAPIForm({ fields, onChange }: { fields: GreenAPIFields; onChange: (f: GreenAPIFields) => void }) {
+  return (
+    <div className="space-y-3">
+      <Field id="ga-instance" label="Instance ID" value={fields.instance_id}
+        onChange={(v) => onChange({ ...fields, instance_id: v })}
+        placeholder="1234567890" hint="Found in your GreenAPI console (console.green-api.com)." />
+      <Field id="ga-token" label="API Token" value={fields.api_token}
+        onChange={(v) => onChange({ ...fields, api_token: v })}
+        type="password" placeholder="••••••••" />
+      <Field id="ga-phone" label="Recipient Phone" value={fields.phone}
+        onChange={(v) => onChange({ ...fields, phone: v })}
+        placeholder="16316010000" hint="Phone number without + or spaces. Country code required." />
+    </div>
+  )
+}
+
+function WhatsAppForm({ fields, onChange }: { fields: WhatsAppFields; onChange: (f: WhatsAppFields) => void }) {
+  return (
+    <div className="space-y-3">
+      <Field id="wa-url" label="API URL" value={fields.api_url}
+        onChange={(v) => onChange({ ...fields, api_url: v })}
+        placeholder="http://localhost:3000"
+        hint="Base URL of your go-whatsapp-web-multidevice instance." />
+      <Field id="wa-phone" label="Recipient Phone" value={fields.phone}
+        onChange={(v) => onChange({ ...fields, phone: v })}
+        placeholder="16316010000" hint="Phone number without + or spaces. Country code required." />
+    </div>
+  )
+}
 
 export function Notifications() {
   const { credentials } = useAuth()
@@ -76,25 +150,20 @@ export function Notifications() {
 
   function openEdit(ch: NotificationChannel) {
     setEditTarget(ch)
-    setForm({
-      name: ch.name,
-      type: ch.type,
-      config: ch.config,
-      notify_success: ch.notify_success,
-      notify_failure: ch.notify_failure,
-      enabled: ch.enabled,
-    })
+    setForm(parseIntoForm({ ...EMPTY_FORM, name: ch.name, notify_success: ch.notify_success, notify_failure: ch.notify_failure, enabled: ch.enabled }, ch.type, ch.config))
     setSubmitError('')
     setTestState('idle')
     setTestError('')
     setModalOpen(true)
   }
 
+  function resetTestState() { setTestState('idle'); setTestError('') }
+
   async function handleTest() {
     setTestState('testing')
     setTestError('')
     try {
-      await testChannel.mutateAsync({ type: form.type, config: form.config })
+      await testChannel.mutateAsync({ type: form.type, config: buildConfig(form) })
       setTestState('ok')
     } catch (e) {
       setTestState('failed')
@@ -104,11 +173,12 @@ export function Notifications() {
 
   async function handleSubmit() {
     setSubmitError('')
+    const payload = { name: form.name, type: form.type, config: buildConfig(form), notify_success: form.notify_success, notify_failure: form.notify_failure, enabled: form.enabled }
     try {
       if (editTarget) {
-        await updateChannel.mutateAsync({ id: editTarget.id, ...form })
+        await updateChannel.mutateAsync({ id: editTarget.id, ...payload })
       } else {
-        await createChannel.mutateAsync(form)
+        await createChannel.mutateAsync(payload)
       }
       setModalOpen(false)
     } catch (e) {
@@ -132,8 +202,8 @@ export function Notifications() {
             Notification Channels
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Channels receive a message after every sync run, with a summary of what changed.
-            Configure each channel to fire on success, failure, or both.
+            Channels receive a message after every sync run with a summary of what changed.
+            Configure each to fire on success, failure, or both.
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -161,18 +231,14 @@ export function Notifications() {
                     <TableCell className="font-medium">{ch.name}</TableCell>
                     <TableCell>{TYPE_LABELS[ch.type]}</TableCell>
                     <TableCell>
-                      {ch.notify_success ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      {ch.notify_success
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        : <XCircle className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell>
-                      {ch.notify_failure ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      {ch.notify_failure
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        : <XCircle className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell>
                       <Badge variant={ch.enabled ? 'default' : 'secondary'}>
@@ -184,12 +250,7 @@ export function Notifications() {
                         <Button variant="ghost" size="icon" onClick={() => openEdit(ch)} aria-label="Edit">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setConfirmDelete(ch)}
-                          aria-label="Delete"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(ch)} aria-label="Delete">
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
@@ -210,26 +271,19 @@ export function Notifications() {
           </DialogHeader>
           <div className="space-y-4">
             {/* Name */}
-            <div className="space-y-1.5">
-              <Label htmlFor="ch-name">Name</Label>
-              <Input
-                id="ch-name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </div>
+            <Field id="ch-name" label="Name" value={form.name}
+              onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
 
             {/* Type */}
             <div className="space-y-1.5">
               <Label htmlFor="ch-type">Type</Label>
               <select
                 id="ch-type"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={form.type}
                 onChange={(e) => {
-                  const t = e.target.value as NotificationChannelType
-                  setForm((f) => ({ ...f, type: t, config: '' }))
-                  setTestState('idle')
+                  setForm((f) => ({ ...f, type: e.target.value as NotificationChannelType }))
+                  resetTestState()
                 }}
               >
                 {(Object.entries(TYPE_LABELS) as [NotificationChannelType, string][]).map(([val, label]) => (
@@ -238,35 +292,27 @@ export function Notifications() {
               </select>
             </div>
 
-            {/* Config */}
-            <div className="space-y-1.5">
-              <Label htmlFor="ch-config">Config (JSON)</Label>
-              <textarea
-                id="ch-config"
-                rows={3}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
-                placeholder={CONFIG_PLACEHOLDERS[form.type]}
-                value={form.config}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, config: e.target.value }))
-                  setTestState('idle')
-                }}
-              />
-              <p className="text-xs text-muted-foreground">{CONFIG_HINTS[form.type]}</p>
-            </div>
+            {/* Provider-specific fields */}
+            {form.type === 'shoutrrr' && (
+              <ShoutrrrForm fields={form.shoutrrr}
+                onChange={(v) => { setForm((f) => ({ ...f, shoutrrr: v })); resetTestState() }} />
+            )}
+            {form.type === 'greenapi' && (
+              <GreenAPIForm fields={form.greenapi}
+                onChange={(v) => { setForm((f) => ({ ...f, greenapi: v })); resetTestState() }} />
+            )}
+            {form.type === 'whatsapp' && (
+              <WhatsAppForm fields={form.whatsapp}
+                onChange={(v) => { setForm((f) => ({ ...f, whatsapp: v })); resetTestState() }} />
+            )}
 
-            {/* Test connection */}
+            {/* Send Test */}
             <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleTest}
-                disabled={testState === 'testing' || !form.config.trim()}
-              >
-                {testState === 'testing' ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-1" />Testing…</>
-                ) : 'Send Test'}
+              <Button type="button" variant="outline" size="sm" onClick={handleTest}
+                disabled={testState === 'testing'}>
+                {testState === 'testing'
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Testing…</>
+                  : 'Send Test'}
               </Button>
               {testState === 'ok' && (
                 <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
@@ -283,25 +329,18 @@ export function Notifications() {
             {/* Toggles */}
             <div className="space-y-2 pt-1">
               <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox
-                  checked={form.notify_success}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, notify_success: v === true }))}
-                />
+                <Checkbox checked={form.notify_success}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, notify_success: v === true }))} />
                 <span className="text-sm">Notify on success</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox
-                  checked={form.notify_failure}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, notify_failure: v === true }))}
-                />
+                <Checkbox checked={form.notify_failure}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, notify_failure: v === true }))} />
                 <span className="text-sm">Notify on failure / partial failure</span>
               </label>
               <div className="flex items-center gap-2 pt-1">
-                <Switch
-                  id="ch-enabled"
-                  checked={form.enabled}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-                />
+                <Switch id="ch-enabled" checked={form.enabled}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))} />
                 <Label htmlFor="ch-enabled">Enabled</Label>
               </div>
             </div>
@@ -311,10 +350,7 @@ export function Notifications() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={createChannel.isPending || updateChannel.isPending}
-            >
+            <Button onClick={handleSubmit} disabled={createChannel.isPending || updateChannel.isPending}>
               {editTarget ? 'Save' : 'Add'}
             </Button>
           </DialogFooter>
