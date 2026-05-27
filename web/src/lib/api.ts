@@ -158,3 +158,32 @@ export async function testConnection(
     body: JSON.stringify(params),
   })
 }
+
+export async function exportBackup(credentials: AnyCredentials | null): Promise<void> {
+  const headers: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' }
+  if (credentials) {
+    headers['Authorization'] = 'Basic ' + encodeCredentials(credentials)
+  }
+  const res = await fetch('/api/v1/backup/export', { headers })
+  if (!res.ok) throw new ApiError(res.status, res.statusText)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cd = res.headers.get('Content-Disposition') ?? ''
+  const match = cd.match(/filename="([^"]+)"/)
+  a.href = url
+  a.download = match ? match[1] : 'aghsync-backup.json'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function importBackup(
+  data: unknown,
+  credentials: AnyCredentials | null
+): Promise<void> {
+  await apiFetch<void>('/api/v1/backup/restore', {
+    credentials,
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}

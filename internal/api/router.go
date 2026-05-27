@@ -82,6 +82,10 @@ func NewRouter(deps Deps) http.Handler {
 		// History
 		r.Get("/history", handlers.ListHistory(deps.History))
 		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
+
+		// Backup / Restore
+		r.Get("/backup/export", handlers.ExportBackup(deps.Store.DB(), deps.Config))
+		r.Post("/backup/restore", handlers.RestoreBackup(deps.Store.DB(), deps.Config))
 	})
 
 	// SPA catch-all: serve static assets; fall back to index.html for client-side routes.
