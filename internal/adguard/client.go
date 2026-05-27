@@ -64,7 +64,7 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 func (c *Client) Apply(ctx context.Context, configType string, data json.RawMessage) error {
 	switch configType {
 	case "dns":
-		return c.post(ctx, "/control/dns_config", data)
+		return c.applyDNS(ctx, data)
 	case "dhcp":
 		return c.post(ctx, "/control/dhcp/set_config", data)
 	case "filtering":
@@ -135,6 +135,29 @@ func (c *Client) TestConnection(ctx context.Context) error {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
 	}
+}
+
+func (c *Client) applyDNS(ctx context.Context, data json.RawMessage) error {
+	// AGH rejects POST /dns_config when use_private_ptr_resolvers is true but
+	// local_ptr_upstreams is empty ("private upstream servers: no upstream specified").
+	// When the master has the flag enabled without configured upstreams (or with
+	// upstreams that are irrelevant to the child), disable the flag on the child
+	// so the rest of the DNS config still applies cleanly.
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("parse dns snapshot: %w", err)
+	}
+	if usePrivate, _ := cfg["use_private_ptr_resolvers"].(bool); usePrivate {
+		upstreams, _ := cfg["local_ptr_upstreams"].([]any)
+		if len(upstreams) == 0 {
+			cfg["use_private_ptr_resolvers"] = false
+		}
+	}
+	cleaned, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal dns config: %w", err)
+	}
+	return c.post(ctx, "/control/dns_config", cleaned)
 }
 
 func (c *Client) applyFiltering(ctx context.Context, data json.RawMessage) error {
