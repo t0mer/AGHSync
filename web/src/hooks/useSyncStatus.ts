@@ -4,10 +4,10 @@ import { apiFetch, type AnyCredentials, type SyncStatusResponse } from '@/lib/ap
 
 export function useSyncStatus(credentials: AnyCredentials | null) {
   const qc = useQueryClient()
-  // Tracks the previous value of `current` to detect running→idle transitions.
-  // Initialized to undefined (not null) so the first render (undefined → null) is
-  // skipped by the != null guard below. NOTE: != uses loose equality on purpose —
-  // undefined == null is true in JS, so undefined != null is false.
+  // Tracks the previous value of `current` to detect run-state transitions.
+  // Initialized to undefined (not null) so the initial mount (undefined → null)
+  // is skipped. NOTE: != uses loose equality on purpose — undefined == null is
+  // true in JS, so undefined != null is false.
   const prevCurrent = useRef<SyncStatusResponse['current'] | undefined>(undefined)
 
   const { data, isLoading, error } = useQuery<SyncStatusResponse>({
@@ -22,10 +22,13 @@ export function useSyncStatus(credentials: AnyCredentials | null) {
   const current = data?.current ?? null
 
   useEffect(() => {
-    // prevCurrent.current != null uses loose equality intentionally:
-    // undefined != null is false, so the initial mount (undefined → null) is skipped.
-    // Only a genuine running→idle transition (object → null) fires the invalidation.
-    if (prevCurrent.current != null && current === null) {
+    // Invalidate history on any run-state change (idle→running or running→idle)
+    // so the History page refreshes both when a run appears and when it completes.
+    // wasRunning uses != (loose equality) intentionally: undefined == null is true
+    // in JS, so the initial mount (undefined → null) is correctly skipped.
+    const wasRunning = prevCurrent.current != null
+    const isRunning = current != null
+    if (wasRunning !== isRunning) {
       qc.invalidateQueries({ queryKey: ['history'] })
     }
     prevCurrent.current = current
