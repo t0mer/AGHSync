@@ -25,9 +25,14 @@ func newGreenAPISender(configJSON string) (*greenAPISender, error) {
 }
 
 func (s *greenAPISender) Send(ctx context.Context, message string) error {
-	// POST https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}
-	// chatId for a personal WhatsApp chat: {phone}@c.us  (international number, no + or spaces)
-	endpoint := fmt.Sprintf("https://api.green-api.com/waInstance%s/sendMessage/%s", s.cfg.InstanceID, s.cfg.APIToken)
+	// GreenAPI routes each instance to a cluster-specific subdomain derived from the first 4
+	// digits of the instance ID (e.g. 7103251345 → 7103.api.greenapi.com).
+	// Using the generic api.green-api.com host returns 400.
+	prefix := s.cfg.InstanceID
+	if len(prefix) > 4 {
+		prefix = prefix[:4]
+	}
+	endpoint := fmt.Sprintf("https://%s.api.greenapi.com/waInstance%s/sendMessage/%s", prefix, s.cfg.InstanceID, s.cfg.APIToken)
 	payload, _ := json.Marshal(map[string]string{
 		"chatId":  s.cfg.Phone + "@c.us",
 		"message": message,
