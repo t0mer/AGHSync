@@ -60,6 +60,34 @@ export async function apiFetch<T = unknown>(path: string, opts: FetchOptions): P
 
 // --- Domain types ---
 
+export type NotificationChannelType = 'shoutrrr' | 'greenapi' | 'whatsapp'
+
+export interface NotificationChannel {
+  id: string
+  name: string
+  type: NotificationChannelType
+  config: string
+  notify_success: boolean
+  notify_failure: boolean
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationChannelPayload {
+  name: string
+  type: NotificationChannelType
+  config: string
+  notify_success: boolean
+  notify_failure: boolean
+  enabled: boolean
+}
+
+export interface TestChannelPayload {
+  type: NotificationChannelType
+  config: string
+}
+
 export interface Instance {
   id: string
   name: string
