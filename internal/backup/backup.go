@@ -13,10 +13,24 @@ const schemaVersion = 1
 
 // BackupData is the serialisable representation of a full AGHSync backup.
 type BackupData struct {
-	Version    int            `json:"version"`
-	ExportedAt string         `json:"exported_at"`
-	Config     BackupConfig   `json:"config"`
-	Instances  []BackupInstance `json:"instances"`
+	Version       int                         `json:"version"`
+	ExportedAt    string                      `json:"exported_at"`
+	Config        BackupConfig                `json:"config"`
+	Instances     []BackupInstance            `json:"instances"`
+	Notifications []BackupNotificationChannel `json:"notifications"`
+}
+
+// BackupNotificationChannel holds one notification_channels row.
+type BackupNotificationChannel struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	ConfigEnc     string `json:"config_enc"`
+	NotifySuccess bool   `json:"notify_success"`
+	NotifyFailure bool   `json:"notify_failure"`
+	Enabled       bool   `json:"enabled"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 // BackupConfig holds auth and scheduler settings.
@@ -137,6 +151,33 @@ func Export(ctx context.Context, db *sql.DB, cfg *config.Config) (*BackupData, e
 		}
 	}
 
+	// --- notification channels ---
+	ncRows, err := db.QueryContext(ctx,
+		`SELECT id, name, type, config_enc, notify_success, notify_failure, enabled, created_at, updated_at
+		 FROM notification_channels ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("query notification_channels: %w", err)
+	}
+	defer ncRows.Close()
+	for ncRows.Next() {
+		var nc BackupNotificationChannel
+		var notifySuccess, notifyFailure, enabled int
+		if err := ncRows.Scan(
+			&nc.ID, &nc.Name, &nc.Type, &nc.ConfigEnc,
+			&notifySuccess, &notifyFailure, &enabled,
+			&nc.CreatedAt, &nc.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan notification_channel: %w", err)
+		}
+		nc.NotifySuccess = notifySuccess == 1
+		nc.NotifyFailure = notifyFailure == 1
+		nc.Enabled = enabled == 1
+		data.Notifications = append(data.Notifications, nc)
+	}
+	if err := ncRows.Err(); err != nil {
+		return nil, err
+	}
+
 	return data, nil
 }
 
@@ -155,6 +196,9 @@ func Restore(ctx context.Context, db *sql.DB, cfg *config.Config, data *BackupDa
 	defer tx.Rollback()
 
 	// Remove existing data.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM notification_channels`); err != nil {
+		return fmt.Errorf("clear notification_channels: %w", err)
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM sync_config`); err != nil {
 		return fmt.Errorf("clear sync_config: %w", err)
 	}
@@ -179,6 +223,19 @@ func Restore(ctx context.Context, db *sql.DB, cfg *config.Config, data *BackupDa
 			); err != nil {
 				return fmt.Errorf("restore sync_config for %q/%s: %w", inst.Name, sc.ConfigType, err)
 			}
+		}
+	}
+
+	// Restore notification channels.
+	for _, nc := range data.Notifications {
+		if _, err = tx.ExecContext(ctx,
+			`INSERT INTO notification_channels(id, name, type, config_enc, notify_success, notify_failure, enabled, created_at, updated_at)
+			 VALUES(?,?,?,?,?,?,?,?,?)`,
+			nc.ID, nc.Name, nc.Type, nc.ConfigEnc,
+			btoi(nc.NotifySuccess), btoi(nc.NotifyFailure), btoi(nc.Enabled),
+			nc.CreatedAt, nc.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("restore notification_channel %q: %w", nc.Name, err)
 		}
 	}
 
