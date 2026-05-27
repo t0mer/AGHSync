@@ -11,6 +11,7 @@ import { Sync } from '@/pages/Sync'
 import { History } from '@/pages/History'
 import { HistoryRun } from '@/pages/HistoryRun'
 import { Settings } from '@/pages/Settings'
+import { useSyncStatus } from '@/hooks/useSyncStatus'
 import { apiFetch, updateTheme, type Settings as SettingsData } from '@/lib/api'
 
 const queryClient = new QueryClient({
@@ -51,6 +52,14 @@ function ThemeServerSync() {
   return null
 }
 
+// Null-rendering component that keeps sync-status polling alive on every page
+// and invalidates the history cache whenever a run starts or finishes.
+function SyncStatusMonitor() {
+  const { credentials } = useAuth()
+  useSyncStatus(credentials)
+  return null
+}
+
 function AppRoutes() {
   const { authRequired, credentials } = useAuth()
 
@@ -68,6 +77,7 @@ function AppRoutes() {
   return (
     <>
       <ThemeServerSync />
+      <SyncStatusMonitor />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
