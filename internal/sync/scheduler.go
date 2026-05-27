@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ func (s *Scheduler) SetSchedule(expr string) error {
 	id, err := s.cron.AddFunc(expr, func() {
 		// Submit returns ErrSyncBusy when a sync is already queued/running; that
 		// is expected and silently skipped — the cron will retry on the next tick.
-		_, _ = s.dispatcher.Submit("scheduler")
+		_, _ = s.dispatcher.Submit(context.Background(), "scheduler")
 	})
 	if err != nil {
 		return fmt.Errorf("add cron job: %w", err)

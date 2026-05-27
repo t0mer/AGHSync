@@ -17,6 +17,9 @@ import (
 // ErrNoMaster is returned when no master instance is configured.
 var ErrNoMaster = errors.New("no master instance configured")
 
+// ErrNoSlaves is returned when there are no enabled slave instances to sync to.
+var ErrNoSlaves = errors.New("no enabled slave instances to sync to")
+
 // ErrPartialFailure is returned by Run when at least one child sync failed.
 var ErrPartialFailure = errors.New("partial failure: one or more child instances failed")
 
@@ -44,8 +47,39 @@ func (e *Engine) WithNotifier(n *notification.Service) *Engine {
 	return e
 }
 
+// HasEnabledSlaves returns true if at least one enabled (non-master) instance exists.
+func (e *Engine) HasEnabledSlaves(ctx context.Context) (bool, error) {
+	instances, err := e.instances.List(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, inst := range instances {
+		if !inst.IsMaster && inst.SyncEnabled {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // Run executes a full sync cycle. It records progress in the history store using runID.
+// Returns ErrNoSlaves (without writing any history) if there are no enabled slave instances.
 func (e *Engine) Run(ctx context.Context, runID, triggeredBy string) error {
+	// Pre-flight: skip history entirely when there is nothing to sync to.
+	instances, err := e.instances.List(ctx)
+	if err != nil {
+		return fmt.Errorf("list instances: %w", err)
+	}
+	hasSlaves := false
+	for _, inst := range instances {
+		if !inst.IsMaster && inst.SyncEnabled {
+			hasSlaves = true
+			break
+		}
+	}
+	if !hasSlaves {
+		return ErrNoSlaves
+	}
+
 	if _, err := e.history.StartRun(ctx, runID, triggeredBy); err != nil {
 		return fmt.Errorf("start run: %w", err)
 	}
@@ -78,7 +112,7 @@ func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {
 	for _, inst := range instances {
 		if inst.IsMaster {
 			master = inst
-		} else {
+		} else if inst.SyncEnabled {
 			children = append(children, inst)
 		}
 	}

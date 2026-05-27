@@ -49,10 +49,15 @@ func newTestSetup(t *testing.T) (*instance.Repository, *history.Store, []byte) {
 
 func TestEngine_Run_NoMaster(t *testing.T) {
 	repo, hs, _ := newTestSetup(t)
-	engine := internalsync.NewEngine(repo, hs)
+	srv := minimalAGHServer(t)
 
+	// Add a slave so the pre-flight passes, then doSync detects no master.
+	_, err := repo.Create(context.Background(), "slave", srv.URL, "u", "p", false, false)
+	require.NoError(t, err)
+
+	engine := internalsync.NewEngine(repo, hs)
 	runID := uuid.NewString()
-	err := engine.Run(context.Background(), runID, "test")
+	err = engine.Run(context.Background(), runID, "test")
 	assert.ErrorIs(t, err, internalsync.ErrNoMaster, "should fail with ErrNoMaster when no master configured")
 }
 
@@ -66,11 +71,11 @@ func TestEngine_Run_MasterNoChildren(t *testing.T) {
 	engine := internalsync.NewEngine(repo, hs)
 	runID := uuid.NewString()
 	err = engine.Run(context.Background(), runID, "manual")
-	require.NoError(t, err, "run with no children should succeed")
+	assert.ErrorIs(t, err, internalsync.ErrNoSlaves, "run with no slaves should return ErrNoSlaves without writing history")
 
-	run, err := hs.GetRun(context.Background(), runID)
-	require.NoError(t, err)
-	assert.Equal(t, "success", run.Status)
+	// No history row should exist.
+	_, getErr := hs.GetRun(context.Background(), runID)
+	assert.Error(t, getErr, "history run should not have been created")
 }
 
 func TestEngine_Run_SyncsChildInstances(t *testing.T) {

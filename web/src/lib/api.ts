@@ -95,6 +95,7 @@ export interface Instance {
   username: string
   is_master: boolean
   tls_skip_verify: boolean
+  sync_enabled: boolean
   created_at: string
   updated_at: string
 }

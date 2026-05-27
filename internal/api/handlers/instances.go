@@ -300,6 +300,30 @@ func GetInstancesStatuses(repo *instance.Repository) http.HandlerFunc {
 	}
 }
 
+// SetInstanceSyncEnabled enables or disables sync for a slave instance.
+func SetInstanceSyncEnabled(repo *instance.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := DecodeJSON(r, &body); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		inst, err := repo.SetSyncEnabled(r.Context(), id, body.Enabled)
+		if errors.Is(err, instance.ErrNotFound) {
+			WriteError(w, http.StatusNotFound, "instance not found")
+			return
+		}
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to update instance")
+			return
+		}
+		WriteJSON(w, http.StatusOK, inst)
+	}
+}
+
 // TestConnectionHandler tests connectivity to an AdGuardHome instance without saving it.
 func TestConnectionHandler(w http.ResponseWriter, r *http.Request) {
 	var req testConnectionRequest

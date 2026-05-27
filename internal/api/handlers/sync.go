@@ -20,10 +20,14 @@ func TriggerWebhookSync(d *internalsync.Dispatcher) http.HandlerFunc {
 
 func triggerSyncWithSource(d *internalsync.Dispatcher, source string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		runID, err := d.Submit(source)
+		runID, err := d.Submit(r.Context(), source)
 		if err != nil {
 			if errors.Is(err, internalsync.ErrSyncBusy) {
 				WriteError(w, http.StatusConflict, "sync already in progress")
+				return
+			}
+			if errors.Is(err, internalsync.ErrNoSlaves) {
+				WriteError(w, http.StatusUnprocessableEntity, "no enabled slave instances to sync to")
 				return
 			}
 			WriteError(w, http.StatusInternalServerError, "submit failed")

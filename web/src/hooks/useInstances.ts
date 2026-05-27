@@ -63,6 +63,16 @@ export function useInstances(credentials: AnyCredentials | null) {
     onSuccess: invalidateAll,
   })
 
+  const setSyncEnabled = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      apiFetch<Instance>(`/api/v1/instances/${id}/sync-enabled`, {
+        credentials,
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: invalidateAll,
+  })
+
   const getSyncConfig = (id: string) =>
     apiFetch<SyncConfigEntry[]>(`/api/v1/instances/${id}/sync-config`, { credentials })
 
@@ -81,6 +91,7 @@ export function useInstances(credentials: AnyCredentials | null) {
     updateInstance,
     deleteInstance,
     promoteInstance,
+    setSyncEnabled,
     getSyncConfig,
     updateSyncConfig,
   }

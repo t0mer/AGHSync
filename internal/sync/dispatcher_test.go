@@ -28,6 +28,16 @@ func newTestDispatcher(t *testing.T) *internalsync.Dispatcher {
 	secret := make([]byte, 32)
 	repo := instance.NewRepository(s.DB(), secret)
 	hs := history.New(s.DB())
+
+	// Seed master + slave so the pre-flight HasEnabledSlaves check passes.
+	masterSrv := minimalAGHServer(t)
+	slaveSrv := minimalAGHServer(t)
+	ctx := context.Background()
+	_, err = repo.Create(ctx, "master", masterSrv.URL, "u", "p", true, false)
+	require.NoError(t, err)
+	_, err = repo.Create(ctx, "slave", slaveSrv.URL, "u", "p", false, false)
+	require.NoError(t, err)
+
 	engine := internalsync.NewEngineWithLogger(repo, hs, nopLogger())
 	return internalsync.NewDispatcher(engine)
 }
@@ -38,7 +48,7 @@ func TestDispatcher_Submit_ReturnsRunID(t *testing.T) {
 	defer cancel()
 	d.Start(ctx)
 
-	runID, err := d.Submit("manual")
+	runID, err := d.Submit(context.Background(), "manual")
 	require.NoError(t, err)
 	assert.NotEmpty(t, runID)
 }
@@ -47,11 +57,11 @@ func TestDispatcher_Submit_BusyReturnsSyncBusy(t *testing.T) {
 	d := newTestDispatcher(t)
 	// Do NOT call d.Start() — the queue depth is 1, so without a consumer
 	// the first Submit fills the buffer and the second must return ErrSyncBusy.
-	runID1, err := d.Submit("manual")
+	runID1, err := d.Submit(context.Background(), "manual")
 	require.NoError(t, err)
 	assert.NotEmpty(t, runID1)
 
-	_, err2 := d.Submit("manual")
+	_, err2 := d.Submit(context.Background(), "manual")
 	require.ErrorIs(t, err2, internalsync.ErrSyncBusy)
 }
 
@@ -61,7 +71,7 @@ func TestDispatcher_Status_ReflectsLastRun(t *testing.T) {
 	defer cancel()
 	d.Start(ctx)
 
-	runID, err := d.Submit("manual")
+	runID, err := d.Submit(context.Background(), "manual")
 	require.NoError(t, err)
 
 	// Wait for run to complete.

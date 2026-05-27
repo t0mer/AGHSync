@@ -1,0 +1,1 @@
+ALTER TABLE instances ADD COLUMN sync_enabled INTEGER NOT NULL DEFAULT 1;

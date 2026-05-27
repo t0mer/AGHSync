@@ -11,12 +11,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { apiFetch, updateWatchdog, type Settings } from '@/lib/api'
 import { useSyncStatus } from '@/hooks/useSyncStatus'
 import { useSettings } from '@/hooks/useSettings'
+import { useInstances } from '@/hooks/useInstances'
 
 export function Sync() {
   const { credentials } = useAuth()
   const qc = useQueryClient()
   const { current, last, status } = useSyncStatus(credentials)
   const { settings } = useSettings(credentials)
+  const { instances } = useInstances(credentials)
+  const hasEnabledSlaves = instances.some((i) => !i.is_master && i.sync_enabled)
   const [cron, setCron] = useState('')
   const [savedCron, setSavedCron] = useState('')
 
@@ -94,10 +97,15 @@ export function Sync() {
             )}
             <Button
               onClick={() => runSync.mutate()}
-              disabled={runSync.isPending || status === 'running'}
+              disabled={runSync.isPending || status === 'running' || !hasEnabledSlaves}
             >
               {runSync.isPending ? 'Starting…' : 'Run Sync Now'}
             </Button>
+            {!hasEnabledSlaves && (
+              <p className="text-sm text-muted-foreground">
+                No enabled slave instances to sync to. Add a slave instance or enable an existing one on the Instances page.
+              </p>
+            )}
             {runSync.isError && runSync.error.message === 'sync already in progress' && (
               <p className="text-sm text-destructive">Sync already in progress.</p>
             )}
