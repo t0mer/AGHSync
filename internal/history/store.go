@@ -146,6 +146,49 @@ func (s *Store) GetResults(ctx context.Context, runID string) ([]*Result, error)
 	return results, rows.Err()
 }
 
+// InstanceLastSync holds the last completed sync time and aggregate status for one instance.
+type InstanceLastSync struct {
+	InstanceID string    `json:"instance_id"`
+	LastSyncAt time.Time `json:"last_sync_at"`
+	Status     string    `json:"status"`
+}
+
+// LastSyncByInstance returns the most recent completed sync outcome for each instance.
+// Instances that have never been synced are omitted from the result.
+func (s *Store) LastSyncByInstance(ctx context.Context) ([]*InstanceLastSync, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT sr.instance_id, run.finished_at,
+		       CASE WHEN SUM(CASE WHEN sr.status='error' THEN 1 ELSE 0 END) > 0
+		            THEN 'error' ELSE 'success' END
+		FROM sync_results sr
+		JOIN sync_runs run ON sr.run_id = run.id
+		WHERE run.finished_at IS NOT NULL
+		  AND run.finished_at = (
+		        SELECT MAX(r2.finished_at)
+		        FROM sync_results sr2
+		        JOIN sync_runs r2 ON sr2.run_id = r2.id
+		        WHERE sr2.instance_id = sr.instance_id
+		          AND r2.finished_at IS NOT NULL
+		      )
+		GROUP BY sr.instance_id, run.finished_at
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []*InstanceLastSync
+	for rows.Next() {
+		var r InstanceLastSync
+		var finishedAt string
+		if err := rows.Scan(&r.InstanceID, &finishedAt, &r.Status); err != nil {
+			return nil, err
+		}
+		r.LastSyncAt, _ = time.Parse(timeFmt, finishedAt)
+		results = append(results, &r)
+	}
+	return results, rows.Err()
+}
+
 // --- internal helpers ---
 
 type scanner interface{ Scan(dest ...any) error }

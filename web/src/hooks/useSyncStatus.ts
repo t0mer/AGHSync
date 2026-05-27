@@ -30,6 +30,7 @@ export function useSyncStatus(credentials: AnyCredentials | null) {
     const isRunning = current != null
     if (wasRunning !== isRunning) {
       qc.invalidateQueries({ queryKey: ['history'] })
+      qc.invalidateQueries({ queryKey: ['instance-last-sync'] })
     }
     prevCurrent.current = current
   }, [current, qc])

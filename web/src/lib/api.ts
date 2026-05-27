@@ -205,6 +205,16 @@ export async function fetchInstanceStatuses(credentials: AnyCredentials | null):
   return apiFetch<InstanceStatus[]>('/api/v1/instances/statuses', { credentials })
 }
 
+export interface InstanceLastSync {
+  instance_id: string
+  last_sync_at: string
+  status: 'success' | 'error'
+}
+
+export async function fetchInstanceLastSync(credentials: AnyCredentials | null): Promise<InstanceLastSync[]> {
+  return apiFetch<InstanceLastSync[]>('/api/v1/instances/last-sync', { credentials })
+}
+
 export async function testConnection(
   params: TestConnectionParams,
   credentials: AnyCredentials | null

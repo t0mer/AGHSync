@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/t0mer/aghsync/internal/adguard"
+	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
 )
 
@@ -323,6 +324,21 @@ func SetInstanceSyncEnabled(repo *instance.Repository) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, inst)
+	}
+}
+
+// GetInstancesLastSync returns the most recent completed sync time and status for each instance.
+func GetInstancesLastSync(histStore *history.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		results, err := histStore.LastSyncByInstance(r.Context())
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to query last sync times")
+			return
+		}
+		if results == nil {
+			results = []*history.InstanceLastSync{}
+		}
+		WriteJSON(w, http.StatusOK, results)
 	}
 }
 
