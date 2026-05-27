@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,48 +15,124 @@ function duration(startedAt: string, finishedAt?: string): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
 }
 
-interface DiffData {
-  before: unknown
-  after: unknown
+// --- diff engine ---
+
+type DiffLine = { text: string; type: 'equal' | 'added' | 'removed' }
+
+function computeDiff(before: string, after: string): DiffLine[] {
+  const a = before.split('\n')
+  const b = after.split('\n')
+  const m = a.length
+  const n = b.length
+
+  // LCS DP table
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1])
+    }
+  }
+
+  // Backtrack
+  const result: DiffLine[] = []
+  let i = m, j = n
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      result.unshift({ text: a[i - 1], type: 'equal' })
+      i--; j--
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ text: b[j - 1], type: 'added' })
+      j--
+    } else {
+      result.unshift({ text: a[i - 1], type: 'removed' })
+      i--
+    }
+  }
+  return result
 }
+
+// --- DiffViewer ---
 
 function DiffViewer({ result }: { result: RunResult }) {
   const [expanded, setExpanded] = useState(false)
 
-  if (!result.diff_json) return null
+  const diff = useMemo<DiffLine[] | null>(() => {
+    if (!result.diff_json) return null
+    try {
+      const { before, after } = JSON.parse(result.diff_json) as { before: unknown; after: unknown }
+      return computeDiff(
+        JSON.stringify(before, null, 2),
+        JSON.stringify(after, null, 2),
+      )
+    } catch {
+      return null
+    }
+  }, [result.diff_json])
 
-  let diff: DiffData
-  try {
-    diff = JSON.parse(result.diff_json) as DiffData
-  } catch {
-    return null
-  }
+  if (!diff) return null
+
+  const added = diff.filter((l) => l.type === 'added').length
+  const removed = diff.filter((l) => l.type === 'removed').length
+  const hasChanges = added > 0 || removed > 0
 
   return (
     <div>
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 px-2 text-xs"
+        className="h-6 px-2 text-xs gap-1"
         onClick={() => setExpanded((v) => !v)}
       >
-        {expanded ? <ChevronDown className="h-3 w-3 mr-1" /> : <ChevronRight className="h-3 w-3 mr-1" />}
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         Diff
+        {hasChanges && (
+          <span className="ml-1 font-mono">
+            {added > 0 && <span className="text-green-600 dark:text-green-400">+{added}</span>}
+            {added > 0 && removed > 0 && <span className="text-muted-foreground mx-0.5">/</span>}
+            {removed > 0 && <span className="text-red-500">-{removed}</span>}
+          </span>
+        )}
       </Button>
+
       {expanded && (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Before</p>
-            <pre className="text-xs bg-muted rounded p-2 overflow-auto max-h-48 whitespace-pre-wrap">
-              {JSON.stringify(diff.before, null, 2)}
-            </pre>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">After</p>
-            <pre className="text-xs bg-muted rounded p-2 overflow-auto max-h-48 whitespace-pre-wrap">
-              {JSON.stringify(diff.after, null, 2)}
-            </pre>
-          </div>
+        <div className="mt-2 rounded border border-border overflow-hidden">
+          {!hasChanges ? (
+            <p className="text-xs text-muted-foreground px-3 py-2">No changes</p>
+          ) : (
+            <div className="overflow-auto max-h-96">
+              <table className="w-full text-xs font-mono border-collapse">
+                <tbody>
+                  {diff.map((line, idx) => {
+                    if (line.type === 'equal') {
+                      return (
+                        <tr key={idx}>
+                          <td className="select-none w-4 px-2 text-muted-foreground/40 text-right border-r border-border bg-background"> </td>
+                          <td className="px-3 py-px whitespace-pre bg-background text-foreground">{line.text}</td>
+                        </tr>
+                      )
+                    }
+                    if (line.type === 'added') {
+                      return (
+                        <tr key={idx} className="bg-green-500/10 dark:bg-green-500/15">
+                          <td className="select-none w-4 px-2 text-green-600 dark:text-green-400 text-right border-r border-green-500/20 font-bold">+</td>
+                          <td className="px-3 py-px whitespace-pre text-green-800 dark:text-green-300">{line.text}</td>
+                        </tr>
+                      )
+                    }
+                    // removed
+                    return (
+                      <tr key={idx} className="bg-red-500/10 dark:bg-red-500/15">
+                        <td className="select-none w-4 px-2 text-red-500 text-right border-r border-red-500/20 font-bold">-</td>
+                        <td className="px-3 py-px whitespace-pre text-red-700 dark:text-red-400 line-through decoration-red-400/60">{line.text}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
