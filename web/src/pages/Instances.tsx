@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ChevronDown, ChevronRight, Crown, Loader2, Pencil, Trash2, XCircle } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -55,6 +56,7 @@ export function Instances() {
     updateInstance,
     deleteInstance,
     promoteInstance,
+    setSyncEnabled,
     getSyncConfig,
     updateSyncConfig,
   } = useInstances(credentials)
@@ -190,6 +192,7 @@ export function Instances() {
             <TableHead>Name</TableHead>
             <TableHead>Address</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Sync</TableHead>
             <TableHead>TLS Skip</TableHead>
             <TableHead>Created</TableHead>
             <TableHead />
@@ -233,6 +236,19 @@ export function Instances() {
                     <Badge variant="secondary">Slave</Badge>
                   )}
                 </TableCell>
+                <TableCell>
+                  {inst.is_master ? (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  ) : (
+                    <Switch
+                      checked={inst.sync_enabled}
+                      onCheckedChange={(enabled) =>
+                        setSyncEnabled.mutate({ id: inst.id, enabled })
+                      }
+                      aria-label={inst.sync_enabled ? 'Disable sync' : 'Enable sync'}
+                    />
+                  )}
+                </TableCell>
                 <TableCell>{inst.tls_skip_verify ? 'Yes' : 'No'}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {new Date(inst.created_at).toLocaleDateString()}
@@ -271,7 +287,7 @@ export function Instances() {
 
               {inst.is_master && expandedId === inst.id && (
                 <TableRow key={`${inst.id}-config`}>
-                  <TableCell colSpan={8} className="bg-muted/30 px-8 py-4">
+                  <TableCell colSpan={9} className="bg-muted/30 px-8 py-4">
                     <p className="text-sm font-medium mb-3">Sync Config</p>
                     <div className="grid grid-cols-3 gap-2">
                       {(

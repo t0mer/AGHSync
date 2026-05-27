@@ -51,16 +51,17 @@ type BackupConfig struct {
 
 // BackupInstance holds one instance plus its sync config.
 type BackupInstance struct {
-	ID            string              `json:"id"`
-	Name          string              `json:"name"`
-	Address       string              `json:"address"`
-	Username      string              `json:"username"`
-	PasswordEnc   string              `json:"password_enc"`
-	IsMaster      bool                `json:"is_master"`
-	TLSSkipVerify bool                `json:"tls_skip_verify"`
-	CreatedAt     string              `json:"created_at"`
-	UpdatedAt     string              `json:"updated_at"`
-	SyncConfig    []BackupSyncConfig  `json:"sync_config"`
+	ID            string             `json:"id"`
+	Name          string             `json:"name"`
+	Address       string             `json:"address"`
+	Username      string             `json:"username"`
+	PasswordEnc   string             `json:"password_enc"`
+	IsMaster      bool               `json:"is_master"`
+	TLSSkipVerify bool               `json:"tls_skip_verify"`
+	SyncEnabled   bool               `json:"sync_enabled"`
+	CreatedAt     string             `json:"created_at"`
+	UpdatedAt     string             `json:"updated_at"`
+	SyncConfig    []BackupSyncConfig `json:"sync_config"`
 }
 
 // BackupSyncConfig is one sync-config row.
@@ -103,23 +104,24 @@ func Export(ctx context.Context, db *sql.DB, cfg *config.Config) (*BackupData, e
 
 	// --- instances (load all before opening sync_config queries to avoid SQLite deadlock) ---
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, name, address, username, password_enc, is_master, tls_skip_verify, created_at, updated_at
+		`SELECT id, name, address, username, password_enc, is_master, tls_skip_verify, sync_enabled, created_at, updated_at
 		 FROM instances ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query instances: %w", err)
 	}
 	for rows.Next() {
 		var inst BackupInstance
-		var isMaster, tlsSkip int
+		var isMaster, tlsSkip, syncEnabled int
 		if err := rows.Scan(
 			&inst.ID, &inst.Name, &inst.Address, &inst.Username, &inst.PasswordEnc,
-			&isMaster, &tlsSkip, &inst.CreatedAt, &inst.UpdatedAt,
+			&isMaster, &tlsSkip, &syncEnabled, &inst.CreatedAt, &inst.UpdatedAt,
 		); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan instance: %w", err)
 		}
 		inst.IsMaster = isMaster == 1
 		inst.TLSSkipVerify = tlsSkip == 1
+		inst.SyncEnabled = syncEnabled == 1
 		data.Instances = append(data.Instances, inst)
 	}
 	rows.Close()
@@ -209,10 +211,10 @@ func Restore(ctx context.Context, db *sql.DB, cfg *config.Config, data *BackupDa
 	// Restore instances and their sync configs.
 	for _, inst := range data.Instances {
 		if _, err = tx.ExecContext(ctx,
-			`INSERT INTO instances(id, name, address, username, password_enc, is_master, tls_skip_verify, created_at, updated_at)
-			 VALUES(?,?,?,?,?,?,?,?,?)`,
+			`INSERT INTO instances(id, name, address, username, password_enc, is_master, tls_skip_verify, sync_enabled, created_at, updated_at)
+			 VALUES(?,?,?,?,?,?,?,?,?,?)`,
 			inst.ID, inst.Name, inst.Address, inst.Username, inst.PasswordEnc,
-			btoi(inst.IsMaster), btoi(inst.TLSSkipVerify), inst.CreatedAt, inst.UpdatedAt,
+			btoi(inst.IsMaster), btoi(inst.TLSSkipVerify), btoi(inst.SyncEnabled), inst.CreatedAt, inst.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("restore instance %q: %w", inst.Name, err)
 		}

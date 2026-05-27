@@ -10,6 +10,7 @@ type Instance struct {
 	Username      string    `json:"username"`
 	IsMaster      bool      `json:"is_master"`
 	TLSSkipVerify bool      `json:"tls_skip_verify"`
+	SyncEnabled   bool      `json:"sync_enabled"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

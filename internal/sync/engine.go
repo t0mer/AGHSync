@@ -78,7 +78,7 @@ func (e *Engine) doSync(ctx context.Context, runID string) (string, error) {
 	for _, inst := range instances {
 		if inst.IsMaster {
 			master = inst
-		} else {
+		} else if inst.SyncEnabled {
 			children = append(children, inst)
 		}
 	}

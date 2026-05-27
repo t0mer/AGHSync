@@ -62,9 +62,9 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 	}
 
 	if _, err = tx.ExecContext(ctx,
-		`INSERT INTO instances(id, name, address, username, password_enc, is_master, tls_skip_verify, created_at, updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?)`,
-		id, name, address, username, enc, btoi(isMaster), btoi(tlsSkipVerify), nowFmt, nowFmt,
+		`INSERT INTO instances(id, name, address, username, password_enc, is_master, tls_skip_verify, sync_enabled, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		id, name, address, username, enc, btoi(isMaster), btoi(tlsSkipVerify), 1, nowFmt, nowFmt,
 	); err != nil {
 		if isUniqueAddressViolation(err) {
 			return nil, ErrDuplicateAddress
@@ -89,7 +89,7 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 
 	return &Instance{
 		ID: id, Name: name, Address: address, Username: username,
-		IsMaster: isMaster, TLSSkipVerify: tlsSkipVerify,
+		IsMaster: isMaster, TLSSkipVerify: tlsSkipVerify, SyncEnabled: true,
 		CreatedAt: now, UpdatedAt: now,
 	}, nil
 }
@@ -97,7 +97,7 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 // Get returns a single instance by ID.
 func (r *Repository) Get(ctx context.Context, id string) (*Instance, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, address, username, is_master, tls_skip_verify, created_at, updated_at
+		`SELECT id, name, address, username, is_master, tls_skip_verify, sync_enabled, created_at, updated_at
 		 FROM instances WHERE id=?`, id)
 	inst, err := scanInstance(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -109,7 +109,7 @@ func (r *Repository) Get(ctx context.Context, id string) (*Instance, error) {
 // List returns all instances ordered by created_at ascending.
 func (r *Repository) List(ctx context.Context) ([]*Instance, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, address, username, is_master, tls_skip_verify, created_at, updated_at
+		`SELECT id, name, address, username, is_master, tls_skip_verify, sync_enabled, created_at, updated_at
 		 FROM instances ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
@@ -300,6 +300,22 @@ func (r *Repository) GetSyncConfig(ctx context.Context, id string) ([]SyncConfig
 	return entries, rows.Err()
 }
 
+// SetSyncEnabled enables or disables sync for a slave instance.
+func (r *Repository) SetSyncEnabled(ctx context.Context, id string, enabled bool) (*Instance, error) {
+	now := time.Now().UTC().Format(timeFmt)
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE instances SET sync_enabled=?, updated_at=? WHERE id=?`,
+		btoi(enabled), now, id)
+	if err != nil {
+		return nil, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return r.Get(ctx, id)
+}
+
 // SetSyncConfig upserts the given config entries for an instance.
 func (r *Repository) SetSyncConfig(ctx context.Context, id string, entries []SyncConfigEntry) error {
 	if _, err := r.Get(ctx, id); err != nil {
@@ -329,16 +345,17 @@ type scanner interface{ Scan(dest ...any) error }
 
 func scanInstance(s scanner) (*Instance, error) {
 	var inst Instance
-	var isMaster, tlsSkipVerify int
+	var isMaster, tlsSkipVerify, syncEnabled int
 	var createdAt, updatedAt string
 	if err := s.Scan(
 		&inst.ID, &inst.Name, &inst.Address, &inst.Username,
-		&isMaster, &tlsSkipVerify, &createdAt, &updatedAt,
+		&isMaster, &tlsSkipVerify, &syncEnabled, &createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
 	inst.IsMaster = isMaster == 1
 	inst.TLSSkipVerify = tlsSkipVerify == 1
+	inst.SyncEnabled = syncEnabled == 1
 	inst.CreatedAt, _ = time.Parse(timeFmt, createdAt)
 	inst.UpdatedAt, _ = time.Parse(timeFmt, updatedAt)
 	return &inst, nil
