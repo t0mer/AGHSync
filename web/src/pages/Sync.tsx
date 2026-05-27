@@ -184,7 +184,10 @@ export function Sync() {
               disabled={!watchdogEnabled}
             />
             <p className="text-xs text-muted-foreground">
-              Full path to the AdGuardHome configuration file on the master instance host.
+              Full path to the AdGuardHome configuration file on the host running AGHSync.
+              Supports Linux paths (<code className="font-mono">/etc/adguardhome/AdGuardHome.yaml</code>),
+              Windows paths (<code className="font-mono">C:\AdGuardHome\AdGuardHome.yaml</code>),
+              and UNC paths (<code className="font-mono">\\server\share\AdGuardHome.yaml</code>).
             </p>
           </div>
 
