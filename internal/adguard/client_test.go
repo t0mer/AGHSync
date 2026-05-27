@@ -156,25 +156,6 @@ func TestClient_Apply_SafeBrowsing_Enable(t *testing.T) {
 	assert.True(t, enableCalled)
 }
 
-func TestClient_Apply_Clients_ReconcilesAdd(t *testing.T) {
-	var addCalled bool
-	srv := newTestServer(t, map[string]http.HandlerFunc{
-		"/control/clients": func(w http.ResponseWriter, r *http.Request) {
-			// child has no clients
-			w.Write([]byte(`{"clients":[],"auto_clients":[],"supported_tags":[]}`))
-		},
-		"/control/clients/add": func(w http.ResponseWriter, r *http.Request) {
-			addCalled = true
-			w.WriteHeader(http.StatusOK)
-		},
-	})
-
-	masterData := json.RawMessage(`{"clients":[{"name":"laptop","ids":["192.168.1.10"]}],"auto_clients":[],"supported_tags":[]}`)
-	c := adguard.NewClient(srv.URL, "admin", "pass", false)
-	err := c.Apply(context.Background(), "clients", masterData)
-	require.NoError(t, err)
-	assert.True(t, addCalled, "should have called /clients/add for missing client")
-}
 
 func TestClient_UnknownConfigType(t *testing.T) {
 	c := adguard.NewClient("http://localhost", "u", "p", false)

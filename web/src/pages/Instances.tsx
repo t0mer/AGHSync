@@ -20,7 +20,7 @@ import { useInstanceStatuses, useInstances } from '@/hooks/useInstances'
 import { ApiError, testConnection, type Instance, type SyncConfigEntry } from '@/lib/api'
 
 const ALL_CONFIG_TYPES = [
-  'blocked_services', 'clients', 'dhcp', 'dns',
+  'blocked_services', 'dhcp', 'dns',
   'filtering', 'parental', 'rewrite',
   'safebrowsing', 'safesearch', 'tls',
 ]

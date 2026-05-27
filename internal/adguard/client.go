@@ -43,8 +43,6 @@ func (c *Client) Snapshot(ctx context.Context, configType string) (json.RawMessa
 		return c.get(ctx, "/control/filtering/status")
 	case "blocked_services":
 		return c.get(ctx, "/control/blocked_services/get")
-	case "clients":
-		return c.get(ctx, "/control/clients")
 	case "rewrite":
 		return c.rewriteSnapshot(ctx)
 	case "safebrowsing":
@@ -71,8 +69,6 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 		return c.applyFiltering(ctx, data)
 	case "blocked_services":
 		return c.put(ctx, "/control/blocked_services/update", data)
-	case "clients":
-		return c.applyClients(ctx, data)
 	case "rewrite":
 		return c.applyRewrite(ctx, data)
 	case "safebrowsing":
@@ -197,65 +193,6 @@ func (c *Client) applyToggle(ctx context.Context, data json.RawMessage, enableUR
 	return c.post(ctx, disableURL, nil)
 }
 
-func (c *Client) applyClients(ctx context.Context, masterData json.RawMessage) error {
-	var masterResp struct {
-		Clients []json.RawMessage `json:"clients"`
-	}
-	if err := json.Unmarshal(masterData, &masterResp); err != nil {
-		return fmt.Errorf("parse master clients: %w", err)
-	}
-
-	childRaw, err := c.get(ctx, "/control/clients")
-	if err != nil {
-		return fmt.Errorf("get child clients: %w", err)
-	}
-	var childResp struct {
-		Clients []json.RawMessage `json:"clients"`
-	}
-	if err := json.Unmarshal(childRaw, &childResp); err != nil {
-		return fmt.Errorf("parse child clients: %w", err)
-	}
-
-	type nameOnly struct{ Name string `json:"name"` }
-
-	masterByName := make(map[string]json.RawMessage)
-	for _, mc := range masterResp.Clients {
-		var obj nameOnly
-		if err := json.Unmarshal(mc, &obj); err == nil && obj.Name != "" {
-			masterByName[obj.Name] = mc
-		}
-	}
-	childByName := make(map[string]json.RawMessage)
-	for _, cc := range childResp.Clients {
-		var obj nameOnly
-		if err := json.Unmarshal(cc, &obj); err == nil && obj.Name != "" {
-			childByName[obj.Name] = cc
-		}
-	}
-
-	for name, mc := range masterByName {
-		if cc, exists := childByName[name]; !exists {
-			body, _ := json.Marshal(map[string]json.RawMessage{"data": mc})
-			if err := c.post(ctx, "/control/clients/add", body); err != nil {
-				return fmt.Errorf("add client %q: %w", name, err)
-			}
-		} else if string(mc) != string(cc) {
-			body, _ := json.Marshal(map[string]any{"name": name, "data": json.RawMessage(mc)})
-			if err := c.post(ctx, "/control/clients/update", body); err != nil {
-				return fmt.Errorf("update client %q: %w", name, err)
-			}
-		}
-	}
-	for name := range childByName {
-		if _, exists := masterByName[name]; !exists {
-			body, _ := json.Marshal(map[string]string{"name": name})
-			if err := c.post(ctx, "/control/clients/delete", body); err != nil {
-				return fmt.Errorf("delete client %q: %w", name, err)
-			}
-		}
-	}
-	return nil
-}
 
 func (c *Client) rewriteSnapshot(ctx context.Context) (json.RawMessage, error) {
 	list, err := c.get(ctx, "/control/rewrite/list")
