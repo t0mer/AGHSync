@@ -21,16 +21,18 @@ type BackupData struct {
 
 // BackupConfig holds auth and scheduler settings.
 type BackupConfig struct {
-	UIAuthEnabled  bool   `json:"ui_auth_enabled"`
-	UIUsername     string `json:"ui_username"`
-	UIPasswordHash string `json:"ui_password_hash"`
-	APITokenHash   string `json:"api_token_hash"`
-	SchedulerCron  string `json:"scheduler_cron"`
-	UITheme        string `json:"ui_theme"`
+	UIAuthEnabled   bool   `json:"ui_auth_enabled"`
+	UIUsername      string `json:"ui_username"`
+	UIPasswordHash  string `json:"ui_password_hash"`
+	APITokenHash    string `json:"api_token_hash"`
+	SchedulerCron   string `json:"scheduler_cron"`
+	UITheme         string `json:"ui_theme"`
+	WatchdogEnabled bool   `json:"watchdog_enabled"`
+	WatchdogPath    string `json:"watchdog_path"`
 	// InstallSecret is the hex-encoded AES key seed used to encrypt instance
 	// passwords. Must be restored alongside the encrypted passwords so they
 	// remain decryptable on any machine.
-	InstallSecret  string `json:"install_secret"`
+	InstallSecret string `json:"install_secret"`
 }
 
 // BackupInstance holds one instance plus its sync config.
@@ -67,18 +69,22 @@ func Export(ctx context.Context, db *sql.DB, cfg *config.Config) (*BackupData, e
 	apiTokenHash, _ := cfg.GetAPITokenHash()
 	schedulerCron, _ := cfg.GetSchedulerCron()
 	uiTheme, _ := cfg.GetUITheme()
+	watchdogEnabled, _ := cfg.GetWatchdogEnabled()
+	watchdogPath, _ := cfg.GetWatchdogPath()
 	// Include the raw hex secret so encrypted instance passwords can be
 	// decrypted after restoring to a different machine.
 	installSecret, _, _ := cfg.Get("install_secret")
 
 	data.Config = BackupConfig{
-		UIAuthEnabled:  authEnabled,
-		UIUsername:     uiUsername,
-		UIPasswordHash: uiPasswordHash,
-		APITokenHash:   apiTokenHash,
-		SchedulerCron:  schedulerCron,
-		UITheme:        uiTheme,
-		InstallSecret:  installSecret,
+		UIAuthEnabled:   authEnabled,
+		UIUsername:      uiUsername,
+		UIPasswordHash:  uiPasswordHash,
+		APITokenHash:    apiTokenHash,
+		SchedulerCron:   schedulerCron,
+		UITheme:         uiTheme,
+		WatchdogEnabled: watchdogEnabled,
+		WatchdogPath:    watchdogPath,
+		InstallSecret:   installSecret,
 	}
 
 	// --- instances (load all before opening sync_config queries to avoid SQLite deadlock) ---
@@ -200,6 +206,12 @@ func Restore(ctx context.Context, db *sql.DB, cfg *config.Config, data *BackupDa
 		if err = cfg.SetUITheme(data.Config.UITheme); err != nil {
 			return fmt.Errorf("restore ui_theme: %w", err)
 		}
+	}
+	if err = cfg.SetWatchdogEnabled(data.Config.WatchdogEnabled); err != nil {
+		return fmt.Errorf("restore watchdog_enabled: %w", err)
+	}
+	if err = cfg.SetWatchdogPath(data.Config.WatchdogPath); err != nil {
+		return fmt.Errorf("restore watchdog_path: %w", err)
 	}
 	// Restore the install secret so encrypted instance passwords remain
 	// decryptable on the destination machine.

@@ -28,6 +28,7 @@ type Deps struct {
 	History    *history.Store
 	Dispatcher *internalsync.Dispatcher
 	Scheduler  *internalsync.Scheduler
+	Watchdog   *internalsync.Watchdog
 }
 
 // NewRouter builds and returns the Chi router with all middleware and routes registered.
@@ -71,6 +72,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/settings/api-token", handlers.GenerateAPIToken(deps.Config, deps.Logger))
 		r.Delete("/settings/api-token", handlers.DeleteAPIToken(deps.Config, deps.Logger))
 		r.Put("/settings/theme", handlers.UpdateTheme(deps.Config))
+		r.Put("/settings/watchdog", handlers.UpdateWatchdog(deps.Config, deps.Watchdog))
 
 		// Sync
 		r.Post("/sync/run", handlers.TriggerSync(deps.Dispatcher))

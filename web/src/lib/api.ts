@@ -119,6 +119,20 @@ export interface Settings {
   scheduler_cron: string
   port: number
   ui_theme: string
+  watchdog_enabled: boolean
+  watchdog_path: string
+}
+
+export async function updateWatchdog(
+  enabled: boolean,
+  path: string,
+  credentials: AnyCredentials | null
+): Promise<Settings> {
+  return apiFetch<Settings>('/api/v1/settings/watchdog', {
+    credentials,
+    method: 'PUT',
+    body: JSON.stringify({ enabled, path }),
+  })
 }
 
 export async function updateTheme(

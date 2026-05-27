@@ -144,6 +144,32 @@ func (c *Config) SetAPITokenHash(h string) error {
 	return c.Set("api_token_hash", h)
 }
 
+// GetWatchdogEnabled returns whether the filesystem watchdog is enabled (default false).
+func (c *Config) GetWatchdogEnabled() (bool, error) {
+	val, err := c.GetWithDefault("watchdog_enabled", "0")
+	if err != nil {
+		return false, err
+	}
+	return val == "1", nil
+}
+
+// SetWatchdogEnabled persists the watchdog enabled flag.
+func (c *Config) SetWatchdogEnabled(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return c.Set("watchdog_enabled", v)
+}
+
+// GetWatchdogPath returns the configured watchdog file path (default "").
+func (c *Config) GetWatchdogPath() (string, error) {
+	return c.GetWithDefault("watchdog_path", "")
+}
+
+// SetWatchdogPath persists the watchdog file path.
+func (c *Config) SetWatchdogPath(path string) error { return c.Set("watchdog_path", path) }
+
 // InstallSecret returns the per-install 32-byte random secret used for AES-GCM key derivation.
 // Generated once on first call and persisted as hex.
 func (c *Config) InstallSecret() ([]byte, error) {
