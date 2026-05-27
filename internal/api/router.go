@@ -14,6 +14,7 @@ import (
 	"github.com/t0mer/aghsync/internal/config"
 	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
+	"github.com/t0mer/aghsync/internal/notification"
 	internalsync "github.com/t0mer/aghsync/internal/sync"
 	"github.com/t0mer/aghsync/internal/store"
 	"github.com/t0mer/aghsync/internal/webui"
@@ -21,14 +22,15 @@ import (
 
 // Deps holds the application dependencies threaded through the router.
 type Deps struct {
-	Store      *store.Store
-	Config     *config.Config
-	Logger     *slog.Logger
-	Instances  *instance.Repository
-	History    *history.Store
-	Dispatcher *internalsync.Dispatcher
-	Scheduler  *internalsync.Scheduler
-	Watchdog   *internalsync.Watchdog
+	Store         *store.Store
+	Config        *config.Config
+	Logger        *slog.Logger
+	Instances     *instance.Repository
+	History       *history.Store
+	Dispatcher    *internalsync.Dispatcher
+	Scheduler     *internalsync.Scheduler
+	Watchdog      *internalsync.Watchdog
+	Notifications *notification.Repository
 }
 
 // NewRouter builds and returns the Chi router with all middleware and routes registered.
