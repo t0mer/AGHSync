@@ -18,6 +18,9 @@
 ### Sync Configuration (master)
 ![Sync Config](assets/screenshots/sync-config.png)
 
+### Filesystem Watchdog
+![Filesystem Watchdog](assets/screenshots/watchdog.png)
+
 ### Sync History
 ![History](assets/screenshots/history.png)
 
@@ -45,6 +48,7 @@
 - **Scheduled sync** — user-configurable cron expression (e.g. `0 * * * *` for hourly)
 - **Manual run** — trigger a sync instantly from the UI or via API
 - **Webhook trigger** — `POST /api/v1/webhook/sync` for external integrations (e.g. AdGuardHome post-update hooks)
+- **Filesystem watchdog** — watch the AdGuardHome config file for changes and automatically trigger a sync when it is updated; supports Linux, Windows, and UNC paths; changes are debounced to handle atomic multi-step writes
 - Sync runs concurrently across all slave instances
 
 ### Dashboard
@@ -191,6 +195,7 @@ Key endpoints:
 | `PUT` | `/api/v1/settings/ui-auth` | Enable/disable UI auth |
 | `POST` | `/api/v1/settings/api-token` | Generate API token |
 | `DELETE` | `/api/v1/settings/api-token` | Remove API token |
+| `PUT` | `/api/v1/settings/watchdog` | Configure filesystem watchdog |
 | `GET` | `/api/v1/backup/export` | Download settings backup |
 | `POST` | `/api/v1/backup/restore` | Restore from backup |
 
