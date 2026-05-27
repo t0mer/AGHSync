@@ -118,6 +118,18 @@ export interface Settings {
   has_api_token: boolean
   scheduler_cron: string
   port: number
+  ui_theme: string
+}
+
+export async function updateTheme(
+  theme: 'dark' | 'light',
+  credentials: AnyCredentials | null
+): Promise<void> {
+  await apiFetch<void>('/api/v1/settings/theme', {
+    credentials,
+    method: 'PUT',
+    body: JSON.stringify({ theme }),
+  })
 }
 
 export interface TestConnectionParams {

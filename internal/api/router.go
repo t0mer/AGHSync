@@ -70,6 +70,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Put("/settings/ui-auth", handlers.UpdateUIAuth(deps.Config, deps.Logger))
 		r.Post("/settings/api-token", handlers.GenerateAPIToken(deps.Config, deps.Logger))
 		r.Delete("/settings/api-token", handlers.DeleteAPIToken(deps.Config, deps.Logger))
+		r.Put("/settings/theme", handlers.UpdateTheme(deps.Config))
 
 		// Sync
 		r.Post("/sync/run", handlers.TriggerSync(deps.Dispatcher))

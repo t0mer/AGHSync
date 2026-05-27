@@ -1,18 +1,19 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
-type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'aghsync_theme'
+export const THEME_STORAGE_KEY = 'aghsync_theme'
 
 interface ThemeContextValue {
   theme: Theme
   toggleTheme: () => void
+  applyServerTheme: (serverTheme: string) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function resolveInitialTheme(): Theme {
-  const stored = localStorage.getItem(STORAGE_KEY)
+  const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'dark' || stored === 'light') return stored
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -26,7 +27,7 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(resolveInitialTheme)
+  const [theme, setThemeState] = useState<Theme>(resolveInitialTheme)
 
   useEffect(() => {
     applyTheme(theme)
@@ -35,8 +36,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e: MediaQueryListEvent) => {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setTheme(e.matches ? 'dark' : 'light')
+      if (!localStorage.getItem(THEME_STORAGE_KEY)) {
+        setThemeState(e.matches ? 'dark' : 'light')
       }
     }
     mq.addEventListener('change', handler)
@@ -44,15 +45,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
+    setThemeState((prev) => {
       const next: Theme = prev === 'dark' ? 'light' : 'dark'
-      localStorage.setItem(STORAGE_KEY, next)
+      localStorage.setItem(THEME_STORAGE_KEY, next)
       return next
     })
   }, [])
 
+  // Called once after settings load to apply the server-saved preference.
+  const applyServerTheme = useCallback((serverTheme: string) => {
+    if (serverTheme !== 'dark' && serverTheme !== 'light') return
+    localStorage.setItem(THEME_STORAGE_KEY, serverTheme)
+    setThemeState(serverTheme)
+  }, [])
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, applyServerTheme }}>
       {children}
     </ThemeContext.Provider>
   )
