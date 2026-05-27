@@ -14,6 +14,11 @@ type settingsResponse struct {
 	HasAPIToken   bool   `json:"has_api_token"`
 	SchedulerCron string `json:"scheduler_cron"`
 	Port          int    `json:"port"`
+	UITheme       string `json:"ui_theme"`
+}
+
+type updateThemeRequest struct {
+	Theme string `json:"theme"`
 }
 
 type updateUIAuthRequest struct {
@@ -34,13 +39,35 @@ func GetSettings(cfg *config.Config) http.HandlerFunc {
 		tokenHash, _ := cfg.GetAPITokenHash()
 		cron, _ := cfg.GetSchedulerCron()
 		port, _ := cfg.GetPort()
+		theme, _ := cfg.GetUITheme()
 		WriteJSON(w, http.StatusOK, settingsResponse{
 			UIAuthEnabled: enabled,
 			UIUsername:    username,
 			HasAPIToken:   tokenHash != "",
 			SchedulerCron: cron,
 			Port:          port,
+			UITheme:       theme,
 		})
+	}
+}
+
+// UpdateTheme persists the user's light/dark preference.
+func UpdateTheme(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req updateThemeRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Theme != "dark" && req.Theme != "light" {
+			WriteError(w, http.StatusBadRequest, "theme must be \"dark\" or \"light\"")
+			return
+		}
+		if err := cfg.SetUITheme(req.Theme); err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to save theme")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

@@ -26,6 +26,7 @@ type BackupConfig struct {
 	UIPasswordHash string `json:"ui_password_hash"`
 	APITokenHash   string `json:"api_token_hash"`
 	SchedulerCron  string `json:"scheduler_cron"`
+	UITheme        string `json:"ui_theme"`
 	// InstallSecret is the hex-encoded AES key seed used to encrypt instance
 	// passwords. Must be restored alongside the encrypted passwords so they
 	// remain decryptable on any machine.
@@ -65,6 +66,7 @@ func Export(ctx context.Context, db *sql.DB, cfg *config.Config) (*BackupData, e
 	uiPasswordHash, _ := cfg.GetUIPasswordHash()
 	apiTokenHash, _ := cfg.GetAPITokenHash()
 	schedulerCron, _ := cfg.GetSchedulerCron()
+	uiTheme, _ := cfg.GetUITheme()
 	// Include the raw hex secret so encrypted instance passwords can be
 	// decrypted after restoring to a different machine.
 	installSecret, _, _ := cfg.Get("install_secret")
@@ -75,6 +77,7 @@ func Export(ctx context.Context, db *sql.DB, cfg *config.Config) (*BackupData, e
 		UIPasswordHash: uiPasswordHash,
 		APITokenHash:   apiTokenHash,
 		SchedulerCron:  schedulerCron,
+		UITheme:        uiTheme,
 		InstallSecret:  installSecret,
 	}
 
@@ -192,6 +195,11 @@ func Restore(ctx context.Context, db *sql.DB, cfg *config.Config, data *BackupDa
 	}
 	if err = cfg.SetSchedulerCron(data.Config.SchedulerCron); err != nil {
 		return fmt.Errorf("restore scheduler_cron: %w", err)
+	}
+	if data.Config.UITheme != "" {
+		if err = cfg.SetUITheme(data.Config.UITheme); err != nil {
+			return fmt.Errorf("restore ui_theme: %w", err)
+		}
 	}
 	// Restore the install secret so encrypted instance passwords remain
 	// decryptable on the destination machine.

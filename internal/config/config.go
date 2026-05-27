@@ -87,6 +87,14 @@ func (c *Config) GetSchedulerCron() (string, error) {
 // SetSchedulerCron persists the cron expression.
 func (c *Config) SetSchedulerCron(expr string) error { return c.Set("scheduler_cron", expr) }
 
+// GetUITheme returns the preferred UI theme ("dark", "light", or "" when not set).
+func (c *Config) GetUITheme() (string, error) {
+	return c.GetWithDefault("ui_theme", "")
+}
+
+// SetUITheme persists the UI theme preference.
+func (c *Config) SetUITheme(theme string) error { return c.Set("ui_theme", theme) }
+
 // GetUIAuthEnabled returns whether UI basic auth is enabled (default false).
 func (c *Config) GetUIAuthEnabled() (bool, error) {
 	val, err := c.GetWithDefault("ui_auth_enabled", "0")
