@@ -71,6 +71,7 @@ export function Instances() {
 
   const [testStatus, setTestStatus] = useState<TestStatus>('idle')
   const [testError, setTestError] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const origConn = useRef({ address: '', username: '', tls_skip_verify: false })
 
   function openCreate() {
@@ -79,6 +80,7 @@ export function Instances() {
     origConn.current = { address: '', username: '', tls_skip_verify: false }
     setTestStatus('idle')
     setTestError('')
+    setSubmitError('')
     setModalOpen(true)
   }
 
@@ -95,23 +97,29 @@ export function Instances() {
     origConn.current = { address: inst.address, username: inst.username, tls_skip_verify: inst.tls_skip_verify }
     setTestStatus('ok')
     setTestError('')
+    setSubmitError('')
     setModalOpen(true)
   }
 
   async function handleSubmit() {
-    if (editTarget) {
-      await updateInstance.mutateAsync({
-        id: editTarget.id,
-        name: form.name,
-        address: form.address,
-        username: form.username,
-        password: form.password === '' ? null : form.password,
-        tls_skip_verify: form.tls_skip_verify,
-      })
-    } else {
-      await createInstance.mutateAsync(form)
+    setSubmitError('')
+    try {
+      if (editTarget) {
+        await updateInstance.mutateAsync({
+          id: editTarget.id,
+          name: form.name,
+          address: form.address,
+          username: form.username,
+          password: form.password === '' ? null : form.password,
+          tls_skip_verify: form.tls_skip_verify,
+        })
+      } else {
+        await createInstance.mutateAsync(form)
+      }
+      setModalOpen(false)
+    } catch (e) {
+      setSubmitError(e instanceof ApiError ? e.message : 'Failed to save instance')
     }
-    setModalOpen(false)
   }
 
   async function handleTestConnection() {
@@ -390,6 +398,9 @@ export function Instances() {
               )}
             </div>
           </div>
+          {submitError && (
+            <p className="text-sm text-destructive -mt-1">{submitError}</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button

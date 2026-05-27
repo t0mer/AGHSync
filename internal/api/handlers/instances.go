@@ -67,6 +67,10 @@ func CreateInstance(repo *instance.Repository) http.HandlerFunc {
 			return
 		}
 		inst, err := repo.Create(r.Context(), req.Name, req.Address, req.Username, req.Password, req.IsMaster, req.TLSSkipVerify)
+		if errors.Is(err, instance.ErrDuplicateAddress) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, "failed to create instance")
 			return
@@ -112,6 +116,10 @@ func UpdateInstance(repo *instance.Repository) http.HandlerFunc {
 		inst, err := repo.Update(r.Context(), id, req.Name, req.Address, req.Username, req.Password, req.TLSSkipVerify)
 		if errors.Is(err, instance.ErrNotFound) {
 			WriteError(w, http.StatusNotFound, "instance not found")
+			return
+		}
+		if errors.Is(err, instance.ErrDuplicateAddress) {
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if err != nil {
