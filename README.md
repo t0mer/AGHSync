@@ -47,12 +47,16 @@
 - TLS skip-verify option per instance for self-signed certificates
 - **Duplicate prevention** — each address can only be added once; a clear error is shown if you try to add the same instance twice
 - **Online/Offline status** — a colored dot per instance refreshes every 60 seconds
+- **AGH version badge** — the running AdGuardHome version is shown per instance alongside the status dot
+- **Per-instance last sync time** — the Instances table shows when each slave was last synced and whether it succeeded or failed, with a green/red indicator
+- **Per-slave sync toggle** — each slave can be individually enabled or disabled; disabled slaves are skipped during sync
 
 ### Synchronisation
 - **Granular sync config** — the master controls which AdGuardHome configuration types are pushed to slaves via per-type checkboxes:
   - `blocked_services`, `dhcp`, `dns`, `filtering`, `parental`, `rewrite`, `safebrowsing`, `safesearch`, `tls`
 - **Scheduled sync** — user-configurable cron expression (e.g. `0 * * * *` for hourly)
 - **Manual run** — trigger a sync instantly from the UI or via API
+- **Sync on startup** — optional toggle to trigger a full sync automatically when AGHSync starts
 - **Webhook trigger** — `POST /api/v1/webhook/sync` for external integrations (e.g. AdGuardHome post-update hooks)
 - **Filesystem watchdog** — watches the AdGuardHome config file for changes and automatically triggers a sync when it is updated; supports Linux, Windows, and UNC paths; changes are debounced to handle atomic multi-step writes (works correctly inside Docker volumes)
 - Sync runs concurrently across all slave instances
@@ -279,7 +283,9 @@ Key endpoints:
 | `PUT` | `/api/v1/instances/{id}/promote` | Promote slave to master |
 | `GET` | `/api/v1/instances/{id}/sync-config` | Get master sync config |
 | `PUT` | `/api/v1/instances/{id}/sync-config` | Update master sync config |
-| `GET` | `/api/v1/instances/statuses` | Online/offline status for all instances |
+| `GET` | `/api/v1/instances/statuses` | Online/offline status and AGH version for all instances |
+| `GET` | `/api/v1/instances/last-sync` | Last sync time and status per instance |
+| `PUT` | `/api/v1/instances/{id}/sync-enabled` | Enable or disable sync for a slave |
 | `GET` | `/api/v1/instances/{id}/stats` | DNS stats for one instance |
 | `POST` | `/api/v1/sync/run` | Trigger a manual sync |
 | `GET` | `/api/v1/sync/status` | Current and last run status |
@@ -297,6 +303,7 @@ Key endpoints:
 | `POST` | `/api/v1/settings/api-token` | Generate API token |
 | `DELETE` | `/api/v1/settings/api-token` | Remove API token |
 | `PUT` | `/api/v1/settings/watchdog` | Configure filesystem watchdog |
+| `PUT` | `/api/v1/settings/sync-on-startup` | Enable/disable sync on startup |
 | `GET` | `/api/v1/backup/export` | Download settings backup |
 | `POST` | `/api/v1/backup/restore` | Restore from backup |
 
