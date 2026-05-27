@@ -12,7 +12,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=frontend /app/web/dist ./internal/webui/dist
+COPY --from=frontend /app/internal/webui/dist ./internal/webui/dist
 ARG VERSION=docker
 RUN CGO_ENABLED=0 go build \
     -ldflags="-s -w -X github.com/t0mer/aghsync/cmd/aghsync.version=${VERSION}" \

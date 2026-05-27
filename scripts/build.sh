@@ -6,13 +6,11 @@ OUT="dist"
 MODULE="github.com/t0mer/aghsync"
 LDFLAGS="-s -w -X ${MODULE}/cmd/aghsync.version=${VERSION}"
 
-# Build frontend first if web/package.json exists
-if [ -f "web/package.json" ]; then
+# Build frontend unless the dist is already present (e.g. pre-built in CI).
+if [ -f "web/package.json" ] && [ ! -f "internal/webui/dist/index.html" ]; then
   echo "Building frontend..."
+  # Vite outDir is ../internal/webui/dist — no copy step needed.
   (cd web && npm ci --silent && npm run build)
-  echo "Copying web/dist → internal/webui/dist/"
-  rm -rf internal/webui/dist
-  cp -r web/dist internal/webui/dist
 fi
 
 mkdir -p "$OUT"
