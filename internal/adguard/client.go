@@ -88,6 +88,27 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 	}
 }
 
+// InstanceStats holds the subset of AGH statistics used by the dashboard.
+type InstanceStats struct {
+	NumDNSQueries           int     `json:"num_dns_queries"`
+	NumBlockedFiltering     int     `json:"num_blocked_filtering"`
+	NumReplacedSafebrowsing int     `json:"num_replaced_safebrowsing"`
+	AvgProcessingTime       float64 `json:"avg_processing_time"`
+}
+
+// Stats fetches current DNS statistics from the AGH instance.
+func (c *Client) Stats(ctx context.Context) (*InstanceStats, error) {
+	raw, err := c.get(ctx, "/control/stats")
+	if err != nil {
+		return nil, err
+	}
+	var s InstanceStats
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil, fmt.Errorf("parse stats: %w", err)
+	}
+	return &s, nil
+}
+
 // TestConnection verifies connectivity and credentials using the same Basic Auth
 // mechanism that all other API calls use.
 func (c *Client) TestConnection(ctx context.Context) error {

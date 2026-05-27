@@ -61,6 +61,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Put("/instances/{id}", handlers.UpdateInstance(deps.Instances))
 		r.Delete("/instances/{id}", handlers.DeleteInstance(deps.Instances))
 		r.Put("/instances/{id}/promote", handlers.PromoteInstance(deps.Instances))
+		r.Get("/instances/{id}/stats", handlers.GetInstanceStats(deps.Instances))
 		r.Get("/instances/{id}/sync-config", handlers.GetSyncConfig(deps.Instances))
 		r.Put("/instances/{id}/sync-config", handlers.UpdateSyncConfig(deps.Instances))
 

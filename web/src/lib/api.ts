@@ -127,6 +127,17 @@ export interface TestConnectionParams {
   tls_skip_verify: boolean
 }
 
+export interface InstanceStats {
+  num_dns_queries: number
+  num_blocked_filtering: number
+  num_replaced_safebrowsing: number
+  avg_processing_time: number
+}
+
+export async function fetchInstanceStats(id: string, credentials: AnyCredentials | null): Promise<InstanceStats> {
+  return apiFetch<InstanceStats>(`/api/v1/instances/${id}/stats`, { credentials })
+}
+
 export interface InstanceStatus {
   id: string
   online: boolean

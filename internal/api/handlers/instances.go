@@ -213,6 +213,34 @@ func UpdateSyncConfig(repo *instance.Repository) http.HandlerFunc {
 	}
 }
 
+// GetInstanceStats proxies the AGH stats endpoint for a single instance.
+func GetInstanceStats(repo *instance.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		inst, err := repo.Get(r.Context(), id)
+		if errors.Is(err, instance.ErrNotFound) {
+			WriteError(w, http.StatusNotFound, "instance not found")
+			return
+		}
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to get instance")
+			return
+		}
+		pw, err := repo.GetDecryptedPassword(r.Context(), id)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to get credentials")
+			return
+		}
+		c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
+		stats, err := c.Stats(r.Context())
+		if err != nil {
+			WriteError(w, http.StatusBadGateway, "failed to fetch stats: "+err.Error())
+			return
+		}
+		WriteJSON(w, http.StatusOK, stats)
+	}
+}
+
 type testConnectionRequest struct {
 	Address       string `json:"address"`
 	Username      string `json:"username"`
