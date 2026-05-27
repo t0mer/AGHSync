@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, fetchInstanceStatuses, type AnyCredentials, type Instance, type InstanceStatus, type SyncConfigEntry } from '@/lib/api'
+import { apiFetch, fetchInstanceLastSync, fetchInstanceStatuses, type AnyCredentials, type Instance, type InstanceLastSync, type InstanceStatus, type SyncConfigEntry } from '@/lib/api'
 
 export function useInstances(credentials: AnyCredentials | null) {
   const qc = useQueryClient()
@@ -106,8 +106,25 @@ export function useInstanceStatuses(credentials: AnyCredentials | null) {
   })
 
   const statusMap: Record<string, boolean | undefined> = {}
+  const versionMap: Record<string, string | undefined> = {}
   for (const s of data ?? []) {
     statusMap[s.id] = s.online
+    versionMap[s.id] = s.version
   }
-  return { statusMap, isLoaded: data !== undefined }
+  return { statusMap, versionMap, isLoaded: data !== undefined }
+}
+
+export function useInstanceLastSync(credentials: AnyCredentials | null) {
+  const { data } = useQuery<InstanceLastSync[]>({
+    queryKey: ['instance-last-sync'],
+    queryFn: () => fetchInstanceLastSync(credentials),
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  })
+
+  const lastSyncMap: Record<string, InstanceLastSync | undefined> = {}
+  for (const s of data ?? []) {
+    lastSyncMap[s.instance_id] = s
+  }
+  return { lastSyncMap }
 }

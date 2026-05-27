@@ -17,7 +17,7 @@ export function Sync() {
   const { credentials } = useAuth()
   const qc = useQueryClient()
   const { current, last, status } = useSyncStatus(credentials)
-  const { settings } = useSettings(credentials)
+  const { settings, updateSyncOnStartup } = useSettings(credentials)
   const { instances } = useInstances(credentials)
   const hasEnabledSlaves = instances.some((i) => !i.is_master && i.sync_enabled)
   const [cron, setCron] = useState('')
@@ -156,6 +156,30 @@ export function Sync() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sync on Startup */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Sync on Startup</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Automatically trigger a full sync when AGHSync starts.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="sync-on-startup"
+              checked={settings?.sync_on_startup ?? false}
+              onCheckedChange={(enabled) => updateSyncOnStartup.mutate(enabled)}
+              disabled={updateSyncOnStartup.isPending}
+            />
+            <Label htmlFor="sync-on-startup">Enable sync on startup</Label>
+          </div>
+          {updateSyncOnStartup.isError && (
+            <p className="text-sm text-destructive mt-2">{updateSyncOnStartup.error.message}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filesystem Watchdog */}
       <Card>

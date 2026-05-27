@@ -60,6 +60,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Post("/instances", handlers.CreateInstance(deps.Instances))
 		r.Post("/instances/test-connection", handlers.TestConnectionHandler)
 		r.Get("/instances/statuses", handlers.GetInstancesStatuses(deps.Instances))
+		r.Get("/instances/last-sync", handlers.GetInstancesLastSync(deps.History))
 		r.Get("/instances/{id}", handlers.GetInstance(deps.Instances))
 		r.Put("/instances/{id}", handlers.UpdateInstance(deps.Instances))
 		r.Delete("/instances/{id}", handlers.DeleteInstance(deps.Instances))
@@ -76,6 +77,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Delete("/settings/api-token", handlers.DeleteAPIToken(deps.Config, deps.Logger))
 		r.Put("/settings/theme", handlers.UpdateTheme(deps.Config))
 		r.Put("/settings/watchdog", handlers.UpdateWatchdog(deps.Config, deps.Watchdog))
+		r.Put("/settings/sync-on-startup", handlers.UpdateSyncOnStartup(deps.Config))
 
 		// Sync
 		r.Post("/sync/run", handlers.TriggerSync(deps.Dispatcher))

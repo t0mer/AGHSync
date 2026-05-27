@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/t0mer/aghsync/internal/adguard"
+	"github.com/t0mer/aghsync/internal/history"
 	"github.com/t0mer/aghsync/internal/instance"
 )
 
@@ -263,8 +264,9 @@ func validateInstanceAddress(address string) error {
 }
 
 type instanceStatusResponse struct {
-	ID     string `json:"id"`
-	Online bool   `json:"online"`
+	ID      string `json:"id"`
+	Online  bool   `json:"online"`
+	Version string `json:"version,omitempty"`
 }
 
 // GetInstancesStatuses concurrently checks connectivity for all instances and returns online/offline status.
@@ -291,7 +293,8 @@ func GetInstancesStatuses(repo *instance.Repository) http.HandlerFunc {
 				c := adguard.NewClient(inst.Address, inst.Username, pw, inst.TLSSkipVerify)
 				checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
-				results[i] = instanceStatusResponse{ID: inst.ID, Online: c.TestConnection(checkCtx) == nil}
+				version, err := c.StatusCheck(checkCtx)
+				results[i] = instanceStatusResponse{ID: inst.ID, Online: err == nil, Version: version}
 			}(i, inst)
 		}
 		wg.Wait()
@@ -321,6 +324,21 @@ func SetInstanceSyncEnabled(repo *instance.Repository) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, inst)
+	}
+}
+
+// GetInstancesLastSync returns the most recent completed sync time and status for each instance.
+func GetInstancesLastSync(histStore *history.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		results, err := histStore.LastSyncByInstance(r.Context())
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to query last sync times")
+			return
+		}
+		if results == nil {
+			results = []*history.InstanceLastSync{}
+		}
+		WriteJSON(w, http.StatusOK, results)
 	}
 }
 

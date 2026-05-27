@@ -34,6 +34,16 @@ export function useSettings(credentials: AnyCredentials | null) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   })
 
+  const updateSyncOnStartup = useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiFetch<Settings>('/api/v1/settings/sync-on-startup', {
+        credentials,
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+
   return {
     settings: data ?? null,
     isLoading,
@@ -41,5 +51,6 @@ export function useSettings(credentials: AnyCredentials | null) {
     updateUIAuth,
     generateToken,
     deleteToken,
+    updateSyncOnStartup,
   }
 }

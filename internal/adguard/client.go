@@ -137,28 +137,42 @@ func (c *Client) Stats(ctx context.Context) (*InstanceStats, error) {
 // TestConnection verifies connectivity and credentials using the same Basic Auth
 // mechanism that all other API calls use.
 func (c *Client) TestConnection(ctx context.Context) error {
+	_, err := c.StatusCheck(ctx)
+	return err
+}
+
+// StatusCheck calls /control/status and returns the AGH version string.
+// An error means the instance is unreachable or credentials are wrong.
+func (c *Client) StatusCheck(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/control/status", nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.SetBasicAuth(c.user, c.pass)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not connect to %s: %w", c.base, err)
+		return "", fmt.Errorf("could not connect to %s: %w", c.base, err)
 	}
 	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }() //nolint:errcheck
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return nil
+		// best-effort parse of version
+		var body struct {
+			Version string `json:"version"`
+		}
+		if b, err2 := io.ReadAll(io.LimitReader(resp.Body, 4096)); err2 == nil {
+			_ = json.Unmarshal(b, &body)
+		}
+		return body.Version, nil
 	case http.StatusUnauthorized:
-		return fmt.Errorf("invalid username or password")
+		return "", fmt.Errorf("invalid username or password")
 	case http.StatusTooManyRequests:
-		return fmt.Errorf("too many login attempts — try again later")
+		return "", fmt.Errorf("too many login attempts — try again later")
 	default:
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
+		return "", fmt.Errorf("unexpected response: %d %s", resp.StatusCode, b)
 	}
 }
 

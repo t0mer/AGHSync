@@ -150,6 +150,7 @@ export interface Settings {
   ui_theme: string
   watchdog_enabled: boolean
   watchdog_path: string
+  sync_on_startup: boolean
 }
 
 export async function updateWatchdog(
@@ -197,10 +198,21 @@ export async function fetchInstanceStats(id: string, credentials: AnyCredentials
 export interface InstanceStatus {
   id: string
   online: boolean
+  version?: string
 }
 
 export async function fetchInstanceStatuses(credentials: AnyCredentials | null): Promise<InstanceStatus[]> {
   return apiFetch<InstanceStatus[]>('/api/v1/instances/statuses', { credentials })
+}
+
+export interface InstanceLastSync {
+  instance_id: string
+  last_sync_at: string
+  status: 'success' | 'error'
+}
+
+export async function fetchInstanceLastSync(credentials: AnyCredentials | null): Promise<InstanceLastSync[]> {
+  return apiFetch<InstanceLastSync[]>('/api/v1/instances/last-sync', { credentials })
 }
 
 export async function testConnection(

@@ -17,7 +17,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { useInstanceStatuses, useInstances } from '@/hooks/useInstances'
+import { useInstanceLastSync, useInstanceStatuses, useInstances } from '@/hooks/useInstances'
 import { ApiError, testConnection, type Instance, type SyncConfigEntry } from '@/lib/api'
 
 const ALL_CONFIG_TYPES = [
@@ -60,7 +60,8 @@ export function Instances() {
     getSyncConfig,
     updateSyncConfig,
   } = useInstances(credentials)
-  const { statusMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
+  const { statusMap, versionMap, isLoaded: statusLoaded } = useInstanceStatuses(credentials)
+  const { lastSyncMap } = useInstanceLastSync(credentials)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Instance | null>(null)
@@ -192,6 +193,8 @@ export function Instances() {
             <TableHead>Name</TableHead>
             <TableHead>Address</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Version</TableHead>
+            <TableHead>Last Sync</TableHead>
             <TableHead>Sync</TableHead>
             <TableHead>TLS Skip</TableHead>
             <TableHead>Created</TableHead>
@@ -234,6 +237,31 @@ export function Instances() {
                     <Badge variant="default">Master</Badge>
                   ) : (
                     <Badge variant="secondary">Slave</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">
+                  {!statusLoaded ? (
+                    <span className="inline-block h-2 w-12 rounded bg-muted-foreground/20 animate-pulse" />
+                  ) : (
+                    versionMap[inst.id] ?? '—'
+                  )}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {inst.is_master ? (
+                    <span>—</span>
+                  ) : lastSyncMap[inst.id] ? (
+                    <span
+                      className={lastSyncMap[inst.id]!.status === 'error' ? 'text-destructive' : ''}
+                      title={new Date(lastSyncMap[inst.id]!.last_sync_at).toLocaleString()}
+                    >
+                      {new Date(lastSyncMap[inst.id]!.last_sync_at).toLocaleDateString()}
+                      {' '}
+                      <span className={lastSyncMap[inst.id]!.status === 'error' ? 'text-destructive' : 'text-green-600 dark:text-green-400'}>
+                        ●
+                      </span>
+                    </span>
+                  ) : (
+                    <span>Never</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -287,7 +315,7 @@ export function Instances() {
 
               {inst.is_master && expandedId === inst.id && (
                 <TableRow key={`${inst.id}-config`}>
-                  <TableCell colSpan={9} className="bg-muted/30 px-8 py-4">
+                  <TableCell colSpan={11} className="bg-muted/30 px-8 py-4">
                     <p className="text-sm font-medium mb-3">Sync Config</p>
                     <div className="grid grid-cols-3 gap-2">
                       {(

@@ -111,6 +111,15 @@ func main() {
 		}
 	}
 
+	// Trigger a sync on startup if configured.
+	if syncOnStartup, err := cfg.GetSyncOnStartup(); err == nil && syncOnStartup {
+		if _, err := dispatcher.Submit(ctx, "startup"); err != nil && err != internalsync.ErrSyncBusy && err != internalsync.ErrNoSlaves {
+			logger.Warn("startup sync failed to submit", "err", err)
+		} else if err == nil {
+			logger.Info("startup sync submitted")
+		}
+	}
+
 	deps := api.Deps{
 		Store:         s,
 		Config:        cfg,
