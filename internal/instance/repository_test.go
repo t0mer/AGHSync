@@ -67,7 +67,11 @@ func TestRepository_Create_MasterHasDefaultSyncConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, cfg, len(instance.AllConfigTypes))
 	for _, e := range cfg {
-		assert.True(t, e.Enabled, "config_type %q should default to enabled", e.ConfigType)
+		if e.ConfigType == "dhcp" {
+			assert.False(t, e.Enabled, "config_type \"dhcp\" should default to disabled")
+		} else {
+			assert.True(t, e.Enabled, "config_type %q should default to enabled", e.ConfigType)
+		}
 	}
 }
 
@@ -248,12 +252,16 @@ func TestRepository_Promote_TransfersConfigWhenMasterHasNone(t *testing.T) {
 
 	require.NoError(t, repo.Promote(ctx, child.ID))
 
-	// Promoted child should have all config types enabled (defaults).
+	// Promoted child should have all config types at their defaults (dhcp disabled).
 	promotedCfg, err := repo.GetSyncConfig(ctx, child.ID)
 	require.NoError(t, err)
 	assert.Len(t, promotedCfg, len(instance.AllConfigTypes))
 	for _, e := range promotedCfg {
-		assert.True(t, e.Enabled)
+		if e.ConfigType == "dhcp" {
+			assert.False(t, e.Enabled)
+		} else {
+			assert.True(t, e.Enabled)
+		}
 	}
 }
 

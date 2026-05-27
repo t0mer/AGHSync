@@ -75,8 +75,8 @@ func (r *Repository) Create(ctx context.Context, name, address, username, passwo
 	if isMaster {
 		for _, ct := range AllConfigTypes {
 			if _, err = tx.ExecContext(ctx,
-				`INSERT INTO sync_config(instance_id, config_type, enabled) VALUES(?,?,1)`,
-				id, ct,
+				`INSERT INTO sync_config(instance_id, config_type, enabled) VALUES(?,?,?)`,
+				id, ct, defaultEnabled(ct),
 			); err != nil {
 				return nil, err
 			}
@@ -236,10 +236,10 @@ func (r *Repository) Promote(ctx context.Context, id string) error {
 		return err
 	}
 
-	// If the master had no sync_config, seed defaults (all enabled).
+	// If the master had no sync_config, seed defaults.
 	if len(masterConfig) == 0 {
 		for _, ct := range AllConfigTypes {
-			masterConfig = append(masterConfig, configRow{configType: ct, enabled: 1})
+			masterConfig = append(masterConfig, configRow{configType: ct, enabled: defaultEnabled(ct)})
 		}
 	}
 
