@@ -9,6 +9,11 @@ export function useInstances(credentials: AnyCredentials | null) {
     queryFn: () => apiFetch<Instance[]>('/api/v1/instances', { credentials }),
   })
 
+  function invalidateAll() {
+    qc.invalidateQueries({ queryKey: ['instances'] })
+    qc.invalidateQueries({ queryKey: ['instance-statuses'] })
+  }
+
   const createInstance = useMutation({
     mutationFn: (body: {
       name: string
@@ -23,7 +28,7 @@ export function useInstances(credentials: AnyCredentials | null) {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+    onSuccess: invalidateAll,
   })
 
   const updateInstance = useMutation({
@@ -43,19 +48,19 @@ export function useInstances(credentials: AnyCredentials | null) {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+    onSuccess: invalidateAll,
   })
 
   const deleteInstance = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/v1/instances/${id}`, { credentials, method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+    onSuccess: invalidateAll,
   })
 
   const promoteInstance = useMutation({
     mutationFn: (id: string) =>
       apiFetch<Instance>(`/api/v1/instances/${id}/promote`, { credentials, method: 'PUT' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['instances'] }),
+    onSuccess: invalidateAll,
   })
 
   const getSyncConfig = (id: string) =>
