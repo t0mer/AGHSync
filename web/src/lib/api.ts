@@ -128,6 +128,7 @@ export interface TestConnectionParams {
 }
 
 export interface InstanceStats {
+  version: string
   num_dns_queries: number
   num_blocked_filtering: number
   num_replaced_safebrowsing: number

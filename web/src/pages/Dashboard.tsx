@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Activity, Ban, Globe, Shield } from 'lucide-react'
+import { Activity, Ban, Globe, Shield, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -53,6 +53,12 @@ function InstanceStatsCard({ inst, credentials }: { inst: Instance; credentials:
           <div className="min-w-0">
             <CardTitle className="text-base truncate">{inst.name}</CardTitle>
             <p className="text-xs text-muted-foreground truncate mt-0.5">{inst.address}</p>
+            {stats?.version && (
+              <span className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <Tag className="h-3 w-3 shrink-0" />
+                {stats.version}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
             <span

@@ -86,22 +86,51 @@ func (c *Client) Apply(ctx context.Context, configType string, data json.RawMess
 
 // InstanceStats holds the subset of AGH statistics used by the dashboard.
 type InstanceStats struct {
+	Version                 string  `json:"version"`
 	NumDNSQueries           int     `json:"num_dns_queries"`
 	NumBlockedFiltering     int     `json:"num_blocked_filtering"`
 	NumReplacedSafebrowsing int     `json:"num_replaced_safebrowsing"`
 	AvgProcessingTime       float64 `json:"avg_processing_time"`
 }
 
-// Stats fetches current DNS statistics from the AGH instance.
+// Stats fetches DNS statistics and the running version from the AGH instance
+// concurrently, returning them as a single response.
 func (c *Client) Stats(ctx context.Context) (*InstanceStats, error) {
-	raw, err := c.get(ctx, "/control/stats")
-	if err != nil {
-		return nil, err
+	type result struct {
+		raw json.RawMessage
+		err error
+	}
+	statsCh := make(chan result, 1)
+	statusCh := make(chan result, 1)
+
+	go func() {
+		raw, err := c.get(ctx, "/control/stats")
+		statsCh <- result{raw, err}
+	}()
+	go func() {
+		raw, err := c.get(ctx, "/control/status")
+		statusCh <- result{raw, err}
+	}()
+
+	sr := <-statsCh
+	if sr.err != nil {
+		return nil, sr.err
 	}
 	var s InstanceStats
-	if err := json.Unmarshal(raw, &s); err != nil {
+	if err := json.Unmarshal(sr.raw, &s); err != nil {
 		return nil, fmt.Errorf("parse stats: %w", err)
 	}
+
+	vr := <-statusCh
+	if vr.err == nil {
+		var status struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(vr.raw, &status); err == nil {
+			s.Version = status.Version
+		}
+	}
+
 	return &s, nil
 }
 
