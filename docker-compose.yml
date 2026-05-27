@@ -1,6 +1,6 @@
 services:
   aghsync:
-    build: .
+    image: techblog/aghsync:latest
     ports:
       - "8080:8080"
     volumes:
