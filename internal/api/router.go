@@ -88,6 +88,14 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/history", handlers.ListHistory(deps.History))
 		r.Get("/history/{runId}", handlers.GetHistoryRun(deps.History))
 
+		// Notification channels
+		r.Get("/notifications", handlers.ListNotificationChannels(deps.Notifications))
+		r.Post("/notifications", handlers.CreateNotificationChannel(deps.Notifications))
+		r.Post("/notifications/test", handlers.TestNotificationChannel(deps.Notifications))
+		r.Get("/notifications/{id}", handlers.GetNotificationChannel(deps.Notifications))
+		r.Put("/notifications/{id}", handlers.UpdateNotificationChannel(deps.Notifications))
+		r.Delete("/notifications/{id}", handlers.DeleteNotificationChannel(deps.Notifications))
+
 		// Backup / Restore
 		r.Get("/backup/export", handlers.ExportBackup(deps.Store.DB(), deps.Config))
 		r.Post("/backup/restore", handlers.RestoreBackup(deps.Store.DB(), deps.Config))
