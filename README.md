@@ -7,7 +7,7 @@
 ## Screenshots
 
 ### Dashboard
-![Dashboard](https://github.com/t0mer/AGHSync/assets/screenshots/dashboard.png)
+![Dashboard](assets/screenshots/dashboard.png)
 
 ### Dark Mode
 ![Dark Mode](assets/screenshots/dark-mode.png)
