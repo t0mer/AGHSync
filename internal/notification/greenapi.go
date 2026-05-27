@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -24,13 +25,14 @@ func newGreenAPISender(configJSON string) (*greenAPISender, error) {
 }
 
 func (s *greenAPISender) Send(ctx context.Context, message string) error {
-	// POST https://api.green-api.com/waInstance{instanceId}/sendMessage/{apiTokenInstance}
-	url := fmt.Sprintf("https://api.green-api.com/waInstance%s/sendMessage/%s", s.cfg.InstanceID, s.cfg.APIToken)
-	body, _ := json.Marshal(map[string]string{
+	// POST https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}
+	// chatId for a personal WhatsApp chat: {phone}@c.us  (international number, no + or spaces)
+	endpoint := fmt.Sprintf("https://api.green-api.com/waInstance%s/sendMessage/%s", s.cfg.InstanceID, s.cfg.APIToken)
+	payload, _ := json.Marshal(map[string]string{
 		"chatId":  s.cfg.Phone + "@c.us",
 		"message": message,
 	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("greenapi: build request: %w", err)
 	}
@@ -41,7 +43,9 @@ func (s *greenAPISender) Send(ctx context.Context, message string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("greenapi: unexpected status %d", resp.StatusCode)
+		// Read up to 512 bytes of the error body so the caller can diagnose misconfiguration.
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("greenapi: status %d: %s", resp.StatusCode, string(errBody))
 	}
 	return nil
 }
