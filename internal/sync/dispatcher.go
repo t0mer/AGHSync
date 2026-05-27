@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -72,20 +73,25 @@ func (d *Dispatcher) loop(ctx context.Context) {
 
 			err := d.engine.Run(ctx, req.runID, req.triggeredBy)
 
-			status := "success"
-			if errors.Is(err, ErrPartialFailure) {
-				status = "partial_failure"
-			} else if err != nil {
-				status = "error"
-			}
 			fin := time.Now().UTC()
 			d.mu.Lock()
-			d.last = &RunStatus{
-				RunID:       req.runID,
-				TriggeredBy: req.triggeredBy,
-				StartedAt:   now,
-				FinishedAt:  &fin,
-				Status:      status,
+			// ErrNoSlaves means nothing ran and nothing was written to history —
+			// leave d.last untouched so the status panel keeps showing the
+			// previous result.
+			if !errors.Is(err, ErrNoSlaves) {
+				status := "success"
+				if errors.Is(err, ErrPartialFailure) {
+					status = "partial_failure"
+				} else if err != nil {
+					status = "error"
+				}
+				d.last = &RunStatus{
+					RunID:       req.runID,
+					TriggeredBy: req.triggeredBy,
+					StartedAt:   now,
+					FinishedAt:  &fin,
+					Status:      status,
+				}
 			}
 			d.current = nil
 			d.mu.Unlock()
@@ -93,9 +99,17 @@ func (d *Dispatcher) loop(ctx context.Context) {
 	}
 }
 
-// Submit queues a sync request. Returns the pre-generated run ID, or ErrSyncBusy
-// if the queue is full (another run is already queued or in progress).
-func (d *Dispatcher) Submit(triggeredBy string) (string, error) {
+// Submit queues a sync request. Returns the pre-generated run ID, or:
+//   - ErrSyncBusy if the queue is full (another run is already queued or in progress)
+//   - ErrNoSlaves if there are no enabled slave instances to sync to
+func (d *Dispatcher) Submit(ctx context.Context, triggeredBy string) (string, error) {
+	ok, err := d.engine.HasEnabledSlaves(ctx)
+	if err != nil {
+		return "", fmt.Errorf("pre-flight check: %w", err)
+	}
+	if !ok {
+		return "", ErrNoSlaves
+	}
 	runID := uuid.NewString()
 	req := dispatchReq{runID: runID, triggeredBy: triggeredBy}
 	select {

@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -135,7 +136,7 @@ func (w *Watchdog) run(watcher *fsnotify.Watcher, stop, stopped chan struct{}) {
 					debounce.Stop()
 				}
 				debounce = time.AfterFunc(watchdogDebounce, func() {
-					if _, err := w.dispatcher.Submit("watchdog"); err != nil && err != ErrSyncBusy {
+					if _, err := w.dispatcher.Submit(context.Background(), "watchdog"); err != nil && err != ErrSyncBusy && err != ErrNoSlaves {
 						w.logger.Warn("watchdog: failed to submit sync", "err", err)
 					} else if err == nil {
 						w.logger.Info("watchdog: sync triggered by file change")

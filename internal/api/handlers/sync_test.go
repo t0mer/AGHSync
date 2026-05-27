@@ -19,6 +19,25 @@ import (
 	"github.com/t0mer/aghsync/internal/store"
 )
 
+// minimalAGHSrv returns a test server that satisfies the AGH API contract.
+func minimalAGHSrv(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			if r.URL.Path == "/control/rewrite/list" {
+				w.Write([]byte(`[]`))
+				return
+			}
+			w.Write([]byte(`{"enabled":false}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 func newSyncTestSetup(t *testing.T) (*internalsync.Dispatcher, *config.Config) {
 	t.Helper()
 	s, err := store.Open(":memory:")
@@ -28,11 +47,21 @@ func newSyncTestSetup(t *testing.T) (*internalsync.Dispatcher, *config.Config) {
 	secret := make([]byte, 32)
 	repo := instance.NewRepository(s.DB(), secret)
 	hs := history.New(s.DB())
+
+	// Seed master + slave so the pre-flight HasEnabledSlaves check passes.
+	masterSrv := minimalAGHSrv(t)
+	slaveSrv := minimalAGHSrv(t)
+	ctx := context.Background()
+	_, err = repo.Create(ctx, "master", masterSrv.URL, "u", "p", true, false)
+	require.NoError(t, err)
+	_, err = repo.Create(ctx, "slave", slaveSrv.URL, "u", "p", false, false)
+	require.NoError(t, err)
+
 	engine := internalsync.NewEngine(repo, hs)
 	d := internalsync.NewDispatcher(engine)
-	ctx, cancel := context.WithCancel(context.Background())
+	cancelCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	_ = d.Start(ctx)
+	_ = d.Start(cancelCtx)
 
 	cfg := config.New(s)
 	return d, cfg
@@ -136,6 +165,16 @@ func TestTriggerSync_Returns409WhenBusy(t *testing.T) {
 	secret := make([]byte, 32)
 	repo := instance.NewRepository(s.DB(), secret)
 	hs := history.New(s.DB())
+
+	// Seed master + slave so the pre-flight passes and Submit can queue.
+	masterSrv := minimalAGHSrv(t)
+	slaveSrv := minimalAGHSrv(t)
+	ctx := context.Background()
+	_, err = repo.Create(ctx, "master", masterSrv.URL, "u", "p", true, false)
+	require.NoError(t, err)
+	_, err = repo.Create(ctx, "slave", slaveSrv.URL, "u", "p", false, false)
+	require.NoError(t, err)
+
 	engine := internalsync.NewEngine(repo, hs)
 	d := internalsync.NewDispatcher(engine)
 	// No d.Start() — queue is drained by nobody.
