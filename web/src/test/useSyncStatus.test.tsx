@@ -1,6 +1,6 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { http, HttpResponse } from 'msw'
 import { server } from './server'
@@ -37,5 +37,50 @@ describe('useSyncStatus', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false))
     expect(result.current.status).toBe('running')
     expect(result.current.current?.run_id).toBe('abc')
+  })
+
+  it('invalidates history cache when run transitions from running to idle', async () => {
+    // Start with a running sync
+    server.use(
+      http.get('/api/v1/sync/status', () =>
+        HttpResponse.json({
+          current: {
+            run_id: 'abc',
+            triggered_by: 'watchdog',
+            started_at: '2026-01-01T00:00:00Z',
+            status: 'running',
+          },
+          last: null,
+        })
+      )
+    )
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const wrap = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(() => useSyncStatus(null), { wrapper: wrap })
+    await waitFor(() => expect(result.current.status).toBe('running'))
+
+    // Transition to idle
+    server.use(
+      http.get('/api/v1/sync/status', () =>
+        HttpResponse.json({ current: null, last: null })
+      )
+    )
+
+    // Force the hook to re-fetch sync status and detect the transition
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ['sync-status'] })
+    })
+
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    const historyCalls = spy.mock.calls.filter(
+      ([arg]) => JSON.stringify(arg) === JSON.stringify({ queryKey: ['history'] })
+    )
+    expect(historyCalls).toHaveLength(1)
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['history'] })
   })
 })
