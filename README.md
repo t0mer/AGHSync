@@ -92,6 +92,7 @@ docker run -d \
   --name aghsync \
   -p 8080:8080 \
   -v aghsync-data:/app/data \
+  -e AGHSYNC_DATA=/app/data \
   techblog/aghsync:latest
 ```
 
@@ -108,6 +109,7 @@ services:
     volumes:
       - aghsync-data:/app/data
     environment:
+      AGHSYNC_DATA: /app/data
       LOG_LEVEL: info
 
 volumes:

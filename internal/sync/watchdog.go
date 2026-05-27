@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -44,9 +45,14 @@ func (w *Watchdog) Start(path string) error {
 	if err != nil {
 		return fmt.Errorf("create fsnotify watcher: %w", err)
 	}
-	if err := watcher.Add(path); err != nil {
+	// Watch the parent directory rather than the file itself. AdGuardHome writes
+	// its config atomically (write temp file → rename), which makes a file-level
+	// watch go stale after the first save. A directory watch survives renames and
+	// receives a Create/Rename event for the target file on every atomic replace.
+	dir := filepath.Dir(path)
+	if err := watcher.Add(dir); err != nil {
 		watcher.Close()
-		return fmt.Errorf("watch %q: %w", path, err)
+		return fmt.Errorf("watch %q: %w", dir, err)
 	}
 
 	stop := make(chan struct{})
@@ -101,6 +107,11 @@ func (w *Watchdog) Path() string {
 
 func (w *Watchdog) run(watcher *fsnotify.Watcher, stop, stopped chan struct{}) {
 	defer close(stopped)
+
+	w.mu.Lock()
+	filename := filepath.Base(w.path)
+	w.mu.Unlock()
+
 	var debounce *time.Timer
 	for {
 		select {
@@ -113,8 +124,13 @@ func (w *Watchdog) run(watcher *fsnotify.Watcher, stop, stopped chan struct{}) {
 			if !ok {
 				return
 			}
-			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-				w.logger.Debug("watchdog: file changed, debouncing", "path", event.Name)
+			// Ignore events for other files in the same directory.
+			if filepath.Base(event.Name) != filename {
+				continue
+			}
+			// Write: in-place edit. Create/Rename: atomic replace (write temp → rename).
+			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) {
+				w.logger.Debug("watchdog: file changed, debouncing", "path", event.Name, "op", event.Op)
 				if debounce != nil {
 					debounce.Stop()
 				}

@@ -33,3 +33,13 @@ var AllConfigTypes = []string{
 	"safesearch",
 	"tls",
 }
+
+// defaultEnabled returns the default enabled state for a config type.
+// dhcp is off by default because DHCP configuration is host-specific and
+// syncing it blindly across instances is almost always undesirable.
+func defaultEnabled(configType string) int {
+	if configType == "dhcp" {
+		return 0
+	}
+	return 1
+}
