@@ -98,10 +98,9 @@ export function Settings() {
     setImportBusy(true)
     try {
       await importBackup(pendingBackup, credentials)
-      setPendingBackup(null)
+      window.location.reload()
     } catch (e) {
       setImportError(e instanceof Error ? e.message : 'Restore failed')
-    } finally {
       setImportBusy(false)
     }
   }
