@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, GitCommit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -53,29 +53,35 @@ function computeDiff(before: string, after: string): DiffLine[] {
   return result
 }
 
+// --- diff helpers ---
+
+function parseDiff(diffJson: string | undefined): DiffLine[] | null {
+  if (!diffJson) return null
+  try {
+    const { before, after } = JSON.parse(diffJson) as { before: unknown; after: unknown }
+    return computeDiff(JSON.stringify(before, null, 2), JSON.stringify(after, null, 2))
+  } catch {
+    return null
+  }
+}
+
+function diffStats(lines: DiffLine[] | null) {
+  if (!lines) return { added: 0, removed: 0, hasChanges: false }
+  const added = lines.filter((l) => l.type === 'added').length
+  const removed = lines.filter((l) => l.type === 'removed').length
+  return { added, removed, hasChanges: added > 0 || removed > 0 }
+}
+
 // --- DiffViewer ---
 
 function DiffViewer({ result }: { result: RunResult }) {
   const [expanded, setExpanded] = useState(false)
 
-  const diff = useMemo<DiffLine[] | null>(() => {
-    if (!result.diff_json) return null
-    try {
-      const { before, after } = JSON.parse(result.diff_json) as { before: unknown; after: unknown }
-      return computeDiff(
-        JSON.stringify(before, null, 2),
-        JSON.stringify(after, null, 2),
-      )
-    } catch {
-      return null
-    }
-  }, [result.diff_json])
+  const diff = useMemo(() => parseDiff(result.diff_json), [result.diff_json])
 
   if (!diff) return null
 
-  const added = diff.filter((l) => l.type === 'added').length
-  const removed = diff.filter((l) => l.type === 'removed').length
-  const hasChanges = added > 0 || removed > 0
+  const { added, removed, hasChanges } = diffStats(diff)
 
   return (
     <div>
@@ -188,10 +194,21 @@ export function HistoryRun() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {run.results.map((result) => (
+          {run.results.map((result) => {
+            const { hasChanges } = diffStats(parseDiff(result.diff_json))
+            return (
             <TableRow key={result.id}>
               <TableCell>{instanceName(result.instance_id)}</TableCell>
-              <TableCell className="font-mono text-xs">{result.config_type}</TableCell>
+              <TableCell>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-mono text-xs">{result.config_type}</span>
+                  {hasChanges && (
+                    <span title="Config changed in this run">
+                      <GitCommit className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    </span>
+                  )}
+                </span>
+              </TableCell>
               <TableCell>
                 <StatusBadge status={result.status} />
               </TableCell>
@@ -203,7 +220,8 @@ export function HistoryRun() {
                 )}
               </TableCell>
             </TableRow>
-          ))}
+            )
+          })}
         </TableBody>
       </Table>
     </div>
