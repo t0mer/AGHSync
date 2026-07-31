@@ -7,34 +7,34 @@
 ## Screenshots
 
 ### Dashboard
-![Dashboard](assets/screenshots/dashboard.png)
+![Dashboard](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/dashboard.png)
 
 ### Dark Mode
-![Dark Mode](assets/screenshots/dark-mode.png)
+![Dark Mode](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/dark-mode.png)
 
 ### Instances
-![Instances](assets/screenshots/instances.png)
+![Instances](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/instances.png)
 
 ### Sync Configuration (master)
-![Sync Config](assets/screenshots/sync-config.png)
+![Sync Config](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/sync-config.png)
 
 ### Filesystem Watchdog
-![Filesystem Watchdog](assets/screenshots/watchdog.png)
+![Filesystem Watchdog](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/watchdog.png)
 
 ### Sync History
-![History](assets/screenshots/history.png)
+![History](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/history.png)
 
 ### Run Detail with Diff
-![History Detail](assets/screenshots/history-detail.png)
+![History Detail](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/history-detail.png)
 
 ### Notifications
-![Notifications](assets/screenshots/notifications.png)
+![Notifications](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/notifications.png)
 
 ### Add Notification Channel
-![Add Notification Channel](assets/screenshots/notifications-add.png)
+![Add Notification Channel](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/notifications-add.png)
 
 ### Settings
-![Settings](assets/screenshots/settings.png)
+![Settings](https://raw.githubusercontent.com/t0mer/AGHSync/main/assets/screenshots/settings.png)
 
 ---
 
